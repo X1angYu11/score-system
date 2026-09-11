@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>学生成绩管理系统</title>
+    <style>
+        body { font-family: "Microsoft YaHei", sans-serif; margin: 30px; }
+        table { border-collapse: collapse; margin-top: 15px; }
+        th, td { border: 1px solid #ccc; padding: 6px 14px; }
+        th { background: #f0f0f0; }
+        button { margin: 3px; padding: 5px 12px; cursor: pointer; }
+        input { padding: 4px; margin: 3px; width: 90px; }
+        .msg { color: green; margin-left: 10px; }
+    </style>
+</head>
+<body>
+<h1>学生成绩管理系统</h1>
+
+<div>
+    <h3>添加学生</h3>
+    学号 <input id="addId">
+    姓名 <input id="addName">
+    成绩 <input id="addScore" type="number" step="0.5">
+    <button onclick="addStudent()">添加</button>
+</div>
+
+<div>
+    <h3>查询</h3>
+    <button onclick="loadStudents()">显示所有学生</button>
+    <button onclick="sortStudents()">按成绩排序</button>
+    姓名 <input id="searchName">
+    <button onclick="searchByName()">按姓名查找</button>
+    <span id="msg" class="msg"></span>
+</div>
+
+<table>
+    <thead>
+    <tr><th>学号</th><th>姓名</th><th>成绩</th><th>操作</th></tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+</table>
+
+<script>
+    function showMsg(text) {
+        document.getElementById('msg').innerText = text;
+    }
+
+    function render(students) {
+        const tbody = document.getElementById('tbody');
+        tbody.innerHTML = '';
+        for (const s of students) {
+            tbody.innerHTML += `
+                <tr>
+                    <td>${s.id}</td>
+                    <td>${s.name}</td>
+                    <td>${s.score}</td>
+                    <td>
+                        <button onclick="updateScore('${s.id}')">改成绩</button>
+                        <button onclick="deleteStudent('${s.id}')">删除</button>
+                    </td>
+                </tr>`;
+        }
+    }
+
+    async function loadStudents() {
+        const res = await fetch('/students');
+        render(await res.json());
+        showMsg('');
+    }
+
+    async function sortStudents() {
+        const res = await fetch('/students/sort');
+        render(await res.json());
+        showMsg('已按成绩降序排列');
+    }
+
+    async function searchByName() {
+        const name = document.getElementById('searchName').value;
+        const res = await fetch('/students/search?name=' + encodeURIComponent(name));
+        if (res.status === 404) {
+            render([]);
+            showMsg('没找到该姓名的学生');
+            return;
+        }
+        render([await res.json()]);
+        showMsg('查找完成');
+    }
+
+    async function addStudent() {
+        const stu = {
+            id: document.getElementById('addId').value,
+            name: document.getElementById('addName').value,
+            score: parseFloat(document.getElementById('addScore').value)
+        };
+        const res = await fetch('/students', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(stu)
+        });
+        showMsg(await res.text());
+        loadStudents();
+    }
+
+    async function updateScore(id) {
+        const score = prompt('请输入 ' + id + ' 的新成绩：');
+        if (score === null) return;
+        const res = await fetch('/students/' + id + '/score?score=' + score, { method: 'PUT' });
+        showMsg(await res.text());
+        loadStudents();
+    }
+
+    async function deleteStudent(id) {
+        if (!confirm('确定删除学号 ' + id + ' 吗？')) return;
+        const res = await fetch('/students/' + id, { method: 'DELETE' });
+        showMsg(await res.text());
+        loadStudents();
+    }
+
+    loadStudents();
+</script>
+</body>
+</html>
