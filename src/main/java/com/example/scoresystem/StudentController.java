@@ -21,7 +21,7 @@ public class StudentController {
     public Student studentfindbyid(@PathVariable String id){
         Student stu= studentService.findById(id);
         if(stu==null){
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND,"学生不存在");
+            throw new StudentNotFoundException("学生"+id+"不存在");
         }
         return stu;
     }
@@ -29,7 +29,7 @@ public class StudentController {
     public Student studentfindbyname(@RequestParam String name){
         Student stu= studentService.findByName(name);
         if(stu==null){
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND,"没找到该姓名的学生");
+            throw new StudentNotFoundException("没找到姓名为"+name+"的学生");
         }
         return stu;
     }
@@ -40,8 +40,11 @@ public class StudentController {
     }
     @PutMapping("/students/{id}/score")
     public String update(@PathVariable String id,@RequestParam double score){
-        studentService.updateScore(id,score);
-        return "修改成功"+id;
+        int rows=studentService.updateScore(id,score);
+        if(rows==0){
+            throw new StudentNotFoundException("学生"+id+"不存在，修改失败");
+        }
+        return "修改成功：" + id;
     }
     @GetMapping("/students/sort")
     public List<Student> sort(){
@@ -49,7 +52,15 @@ public class StudentController {
     }
     @DeleteMapping("/students/{id}")
     public String delete(@PathVariable String id){
-        studentService.deleteById(id);
-        return "删除成功"+id;
+        int rows= studentService.deleteById(id);
+        if(rows==0){
+            throw new StudentNotFoundException("学生"+id+"不存在，无需删除");
+        }
+        return "删除成功：" + id;
+    }
+    @PostMapping("/students/batch")
+    public String insertBatch(@RequestBody List<Student> students){
+        int count=studentService.insertBatch(students);
+        return "批量导入成功，共 " + count + " 条";
     }
 }

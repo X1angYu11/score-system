@@ -1,5 +1,5 @@
 package com.example.scoresystem;
-
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import java.util.List;
@@ -34,5 +34,14 @@ public class StudentServiceImpl implements StudentService{
     @Override
     public List<Student> findAllByScoreDesc(){
         return studentDao.findAllByScoreDesc();
+    }
+    @Override
+    @Transactional
+    public int insertBatch(List<Student> students){
+        int count=0;
+        for(Student stu:students){
+            count+=studentDao.insert(stu);
+        }
+        return count;
     }
 }

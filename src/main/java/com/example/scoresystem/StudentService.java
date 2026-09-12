@@ -1,5 +1,6 @@
 package com.example.scoresystem;
 import java.util.List;
+
 public interface StudentService {
     List<Student> findAll();
 
@@ -14,4 +15,5 @@ public interface StudentService {
     int deleteById(String id);
 
     List<Student> findAllByScoreDesc();
+    int insertBatch(List<Student> students);
 }
