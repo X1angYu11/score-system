@@ -16,4 +16,7 @@ public interface StudentService {
 
     List<Student> findAllByScoreDesc();
     int insertBatch(List<Student> students);
+    List<Student> findPage(int page, int size);
+
+    int count();
 }

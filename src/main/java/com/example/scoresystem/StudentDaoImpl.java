@@ -10,7 +10,8 @@ public class StudentDaoImpl implements StudentDao{
     private JdbcTemplate jdbcTemplate;
     @Override
     public List<Student> findAll(){
-        return jdbcTemplate.query("select id,name,score from student",(rs, rowNum) -> new Student(rs.getString("id"), rs.getString("name"),rs.getDouble("score") ));
+        return jdbcTemplate.query("select id,name,score from student",
+                (rs, rowNum) -> new Student(rs.getString("id"), rs.getString("name"),rs.getDouble("score") ));
     }
     @Override
     public Student findById(String id){
@@ -46,5 +47,16 @@ public class StudentDaoImpl implements StudentDao{
                         rs.getString("id"),
                         rs.getString("name"),
                         rs.getDouble("score")));
+    }
+    @Override
+    public List<Student> findPage(int offset,int size){
+        return jdbcTemplate.query("select id,name,score from student order by id limit ?,?",
+                (rs,rowNum)->new Student(rs.getString("id"),rs.getString("name"),
+                        rs.getDouble("score")),offset,size);
+    }
+    @Override
+    public int count(){
+        Integer total=jdbcTemplate.queryForObject("select count(*) from student",Integer.class);
+        return total==null? 0:total;
     }
 }

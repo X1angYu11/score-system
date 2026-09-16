@@ -8,7 +8,10 @@ import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.bind.annotation.PutMapping;//改
 import  org.springframework.web.bind.annotation.DeleteMapping;//删
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+
 @RestController
 public class StudentController {
     @Autowired
@@ -62,5 +65,15 @@ public class StudentController {
     public String insertBatch(@RequestBody List<Student> students){
         int count=studentService.insertBatch(students);
         return "批量导入成功，共 " + count + " 条";
+    }
+    @GetMapping("/students/page")
+    public Map<String, Object> findPage(@RequestParam(defaultValue = "1") int page,
+                                        @RequestParam(defaultValue = "3") int size){
+        Map<String,Object> result=new LinkedHashMap<>();
+        result.put("total",studentService.count());
+        result.put("page",page);
+        result.put("size",size);
+        result.put("data",studentService.findPage(page,size));
+        return result;
     }
 }

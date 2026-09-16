@@ -1,5 +1,8 @@
-﻿out/
+out/
 target/
 .idea/
 *.iml
 .DS_Store
+
+# 前端练习页面：仅本地保留，不纳入版本控制
+src/main/resources/static/app/

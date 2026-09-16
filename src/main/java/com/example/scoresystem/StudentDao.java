@@ -14,4 +14,8 @@ public interface StudentDao {
     int deleteById(String id);
 
     List<Student> findAllByScoreDesc();
+
+    List<Student> findPage(int offset,int size);
+
+    int count();
 }
