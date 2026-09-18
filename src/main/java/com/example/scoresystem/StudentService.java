@@ -1,5 +1,6 @@
 package com.example.scoresystem;
 import java.util.List;
+import java.util.Map;
 
 public interface StudentService {
     List<Student> findAll();
@@ -19,4 +20,7 @@ public interface StudentService {
     List<Student> findPage(int page, int size);
 
     int count();
+    Map<String, Object> stats();
+
+    List<Map<String, Object>> findTop(int n);
 }

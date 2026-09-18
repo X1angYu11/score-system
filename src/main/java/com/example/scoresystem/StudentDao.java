@@ -1,4 +1,5 @@
 package com.example.scoresystem;
+import java.util.Map;
 import java.util.List;
 public interface StudentDao {
     List<Student> findAll();
@@ -18,4 +19,8 @@ public interface StudentDao {
     List<Student> findPage(int offset,int size);
 
     int count();
+
+    Map<String,Object> stats();
+
+    List<Student> findTop(int n);
 }

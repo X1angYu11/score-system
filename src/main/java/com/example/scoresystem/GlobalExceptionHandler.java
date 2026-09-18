@@ -13,4 +13,9 @@ public class GlobalExceptionHandler {
     public Map<String, Object> handleStudentNotFound(StudentNotFoundException e){
         return Map.of("code",404,"message",e.getMessage());
     }
+    @ExceptionHandler(UnauthorizedException.class)
+    @ResponseStatus(HttpStatus.UNAUTHORIZED)
+    public Map<String,Object> handleUnautherized(UnauthorizedException e){
+        return Map.of("code",401,"message",e.getMessage());
+    }
 }

@@ -4,6 +4,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import java.util.List;
+import java.util.Map;
+
 @Repository
 public class StudentDaoImpl implements StudentDao{
     @Autowired
@@ -58,5 +60,17 @@ public class StudentDaoImpl implements StudentDao{
     public int count(){
         Integer total=jdbcTemplate.queryForObject("select count(*) from student",Integer.class);
         return total==null? 0:total;
+    }
+    @Override
+    public Map<String,Object> stats(){
+        return jdbcTemplate.queryForMap("select count(*) as total,"+"AVG(score) as avgScore,"+"MAX(score) as maxScore,"+
+                "MIN(score) as minScore,"+"SUM(case when score>=60 then 1 else 0 end) as passCount"+" from student");
+    }
+    @Override
+    public List<Student> findTop(int n){
+        String sql= """
+                select id,name,score from student order by score desc limit ?""";
+        return jdbcTemplate.query(sql,(rs,rowNum)->new Student(rs.getString("id"),
+                rs.getString("name"),rs.getDouble("score")),n);
     }
 }

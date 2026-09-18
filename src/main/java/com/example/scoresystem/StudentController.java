@@ -76,4 +76,13 @@ public class StudentController {
         result.put("data",studentService.findPage(page,size));
         return result;
     }
+    @GetMapping("/students/stats")
+    public Map<String, Object> stats(){
+        Map<String, Object> result=studentService.stats();
+        return result;
+    }
+    @GetMapping("/students/top")
+    public List<Map<String, Object>> findTop(@RequestParam int n){
+        return studentService.findTop(n);
+    }
 }
