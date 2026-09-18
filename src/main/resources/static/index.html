@@ -4,18 +4,65 @@
     <meta charset="UTF-8">
     <title>学生成绩管理系统</title>
     <style>
-        body { font-family: "Microsoft YaHei", sans-serif; margin: 30px; }
+        body { font-family: "Microsoft YaHei", sans-serif; margin: 30px; color: #333; }
+        h1 { margin-bottom: 10px; }
+        h3 { margin: 18px 0 6px; }
         table { border-collapse: collapse; margin-top: 15px; }
-        th, td { border: 1px solid #ccc; padding: 6px 14px; }
+        th, td { border: 1px solid #ccc; padding: 6px 14px; text-align: center; }
         th { background: #f0f0f0; }
         button { margin: 3px; padding: 5px 12px; cursor: pointer; }
-        input { padding: 4px; margin: 3px; width: 90px; }
-        .msg { color: green; margin-left: 10px; }
+        input { padding: 4px; margin: 3px; width: 100px; }
+        textarea { width: 100%; max-width: 720px; padding: 6px; font-family: Consolas, monospace; }
+        .msg { margin-left: 10px; font-weight: bold; }
+        .msg-ok { color: #1a7f37; }
+        .msg-error { color: #c0392b; }
+        .stats { margin-top: 8px; padding: 8px 12px; background: #f7f9fc; border: 1px solid #e0e6ed; border-radius: 4px; }
+        .stats span { margin-right: 18px; }
+        .page-info { margin: 0 10px; }
     </style>
 </head>
 <body>
 <h1>学生成绩管理系统</h1>
 
+<!-- ================= 登录 ================= -->
+<div>
+    <h3>登录</h3>
+    账号 <input id="username">
+    密码 <input id="password" type="password">
+    <button onclick="login()">登录</button>
+    <span id="msg" class="msg"></span>
+</div>
+
+<!-- ================= 统计 ================= -->
+<div>
+    <h3>成绩统计</h3>
+    <button onclick="loadStats()">刷新统计</button>
+    <div id="stats" class="stats">（登录后点“刷新统计”）</div>
+</div>
+
+<!-- ================= 查询 ================= -->
+<div>
+    <h3>查询</h3>
+    <button onclick="loadPage(1)">显示所有学生</button>
+    <button onclick="sortStudents()">按成绩排序</button>
+    姓名 <input id="searchName">
+    <button onclick="searchByName()">按姓名查找</button>
+    &nbsp;|&nbsp;
+    前 <input id="topN" type="number" value="3" style="width:60px"> 名
+    <button onclick="loadTop()">查排行榜</button>
+</div>
+
+<!-- ================= 分页 ================= -->
+<div>
+    <h3>分页浏览</h3>
+    每页 <input id="pageSize" type="number" value="3" style="width:60px"> 条
+    <button onclick="loadPage(1)">查询</button>
+    <button onclick="prevPage()">上一页</button>
+    <span id="pageInfo" class="page-info">-</span>
+    <button onclick="nextPage()">下一页</button>
+</div>
+
+<!-- ================= 添加 ================= -->
 <div>
     <h3>添加学生</h3>
     学号 <input id="addId">
@@ -24,33 +71,108 @@
     <button onclick="addStudent()">添加</button>
 </div>
 
+<!-- ================= 批量导入 ================= -->
 <div>
-    <h3>查询</h3>
-    <button onclick="loadStudents()">显示所有学生</button>
-    <button onclick="sortStudents()">按成绩排序</button>
-    姓名 <input id="searchName">
-    <button onclick="searchByName()">按姓名查找</button>
-    <span id="msg" class="msg"></span>
+    <h3>批量导入（JSON 数组，事务保证要么全成功要么全回滚）</h3>
+    <textarea id="batchJson" rows="3">[{"id":"T01","name":"批量A","score":80},{"id":"T02","name":"批量B","score":85}]</textarea>
+    <div><button onclick="batchImport()">批量导入</button></div>
 </div>
 
+<!-- ================= 表格 ================= -->
 <table>
     <thead>
-    <tr><th>学号</th><th>姓名</th><th>成绩</th><th>操作</th></tr>
+    <tr><th>名次</th><th>学号</th><th>姓名</th><th>成绩</th><th>操作</th></tr>
     </thead>
     <tbody id="tbody"></tbody>
 </table>
 
 <script>
-    function showMsg(text) {
-        document.getElementById('msg').innerText = text;
+    /* ========== 页面状态 ========== */
+    let currentPage = 1;
+
+    /* ========== 提示信息 ========== */
+    function showMsg(text, type) {
+        const msg = document.getElementById('msg');
+        msg.innerText = text || '';
+        msg.className = 'msg ' + (type === 'error' ? 'msg-error' : 'msg-ok');
     }
 
-    function render(students) {
+    /* ========== 统一请求封装 ==========
+       所有请求都走这里，好处：
+       1) 401 统一提示“请先登录”，不会再出现“点了没反应”
+       2) 其他错误统一把后端的 message 显示出来（后端返回 {code,message}） */
+    async function request(url, options) {
+        const res = await fetch(url, options);
+
+        if (res.status === 401) {
+            showMsg('请先登录（或会话已过期）', 'error');
+            throw new Error('unauthorized');
+        }
+        if (!res.ok) {
+            let message = 'HTTP ' + res.status;
+            try {
+                const body = await res.json();
+                if (body && body.message) {
+                    message = body.message;
+                }
+            } catch (e) {
+                /* 响应体不是 JSON，忽略 */
+            }
+            showMsg(message, 'error');
+            throw new Error(message);
+        }
+        return res;
+    }
+
+    /* ========== 登录 ==========
+       浏览器对同源请求会自动保存并自动携带 Cookie，
+       所以这里登录一次，后续所有请求就自动带会话了 */
+    async function login() {
+        try {
+            /* 这里不用 request()：登录接口的 401 表示"账号密码错误"，
+               而不是"会话过期"，所以要单独处理提示语 */
+            const res = await fetch('/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    username: document.getElementById('username').value,
+                    password: document.getElementById('password').value
+                })
+            });
+            const text = await res.text();
+
+            if (!res.ok) {
+                let message = 'HTTP ' + res.status;
+                try {
+                    const body = JSON.parse(text);
+                    if (body && body.message) {
+                        message = body.message;
+                    }
+                } catch (e) { /* 不是 JSON */ }
+                showMsg(message, 'error');
+                return;
+            }
+
+            showMsg(text);
+            await loadPage(1);
+            await loadStats();
+        } catch (e) {
+            showMsg('登录失败：' + e.message, 'error');
+        }
+    }
+
+    /* ========== 表格渲染 ========== */
+    function render(rows) {
         const tbody = document.getElementById('tbody');
         tbody.innerHTML = '';
-        for (const s of students) {
+        if (!Array.isArray(rows)) {
+            return;
+        }
+        for (const s of rows) {
+            const rank = (s.rank === undefined) ? '-' : s.rank;
             tbody.innerHTML += `
                 <tr>
+                    <td>${rank}</td>
                     <td>${s.id}</td>
                     <td>${s.name}</td>
                     <td>${s.score}</td>
@@ -62,61 +184,147 @@
         }
     }
 
-    async function loadStudents() {
-        const res = await fetch('/students');
-        render(await res.json());
-        showMsg('');
+    /* ========== 分页查询 ========== */
+    async function loadPage(page) {
+        try {
+            const size = Number(document.getElementById('pageSize').value) || 3;
+            const data = await (await request('/students/page?page=' + page + '&size=' + size)).json();
+            render(data.data);
+            currentPage = data.page;
+            const totalPages = data.size > 0 ? Math.ceil(data.total / data.size) : 0;
+            document.getElementById('pageInfo').innerText =
+                '第 ' + data.page + ' / ' + (totalPages || 1) + ' 页，共 ' + data.total + ' 条';
+            showMsg('');
+        } catch (e) {
+            /* 已提示 */
+        }
     }
 
+    function prevPage() {
+        if (currentPage > 1) {
+            loadPage(currentPage - 1);
+        } else {
+            showMsg('已经是第一页了', 'error');
+        }
+    }
+
+    function nextPage() {
+        loadPage(currentPage + 1);
+    }
+
+    /* ========== 排序 / 查找 / 排行榜 ========== */
     async function sortStudents() {
-        const res = await fetch('/students/sort');
-        render(await res.json());
-        showMsg('已按成绩降序排列');
+        try {
+            render(await (await request('/students/sort')).json());
+            showMsg('已按成绩降序排列');
+        } catch (e) { /* 已提示 */ }
     }
 
     async function searchByName() {
         const name = document.getElementById('searchName').value;
-        const res = await fetch('/students/search?name=' + encodeURIComponent(name));
-        if (res.status === 404) {
-            render([]);
-            showMsg('没找到该姓名的学生');
-            return;
+        try {
+            const res = await fetch('/students/search?name=' + encodeURIComponent(name));
+            if (res.status === 404) {
+                render([]);
+                showMsg('没找到姓名为【' + name + '】的学生', 'error');
+                return;
+            }
+            if (res.status === 401) {
+                showMsg('请先登录（或会话已过期）', 'error');
+                return;
+            }
+            render([await res.json()]);
+            showMsg('查找完成');
+        } catch (e) {
+            showMsg('查找失败：' + e.message, 'error');
         }
-        render([await res.json()]);
-        showMsg('查找完成');
     }
 
+    async function loadTop() {
+        const n = Number(document.getElementById('topN').value) || 3;
+        try {
+            render(await (await request('/students/top?n=' + n)).json());
+            showMsg('已显示成绩前 ' + n + ' 名');
+        } catch (e) { /* 已提示 */ }
+    }
+
+    /* ========== 统计 ========== */
+    async function loadStats() {
+        try {
+            const s = await (await request('/students/stats')).json();
+            document.getElementById('stats').innerHTML =
+                '<span>总人数：<b>' + s.total + '</b></span>' +
+                '<span>平均分：<b>' + s.avgScore + '</b></span>' +
+                '<span>最高分：<b>' + s.maxScore + '</b></span>' +
+                '<span>最低分：<b>' + s.minScore + '</b></span>' +
+                '<span>及格人数：<b>' + s.passCount + '</b></span>' +
+                '<span>及格率：<b>' + s.passRate + '%</b></span>';
+        } catch (e) { /* 已提示 */ }
+    }
+
+    /* ========== 增删改 ========== */
     async function addStudent() {
         const stu = {
             id: document.getElementById('addId').value,
             name: document.getElementById('addName').value,
             score: parseFloat(document.getElementById('addScore').value)
         };
-        const res = await fetch('/students', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(stu)
-        });
-        showMsg(await res.text());
-        loadStudents();
+        try {
+            const res = await request('/students', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(stu)
+            });
+            showMsg(await res.text());
+            await loadPage(1);
+        } catch (e) { /* 已提示 */ }
+    }
+
+    async function batchImport() {
+        let list;
+        try {
+            list = JSON.parse(document.getElementById('batchJson').value);
+        } catch (e) {
+            showMsg('JSON 格式不对：' + e.message, 'error');
+            return;
+        }
+        try {
+            const res = await request('/students/batch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(list)
+            });
+            showMsg(await res.text());
+            await loadPage(1);
+        } catch (e) { /* 已提示 */ }
     }
 
     async function updateScore(id) {
-        const score = prompt('请输入 ' + id + ' 的新成绩：');
-        if (score === null) return;
-        const res = await fetch('/students/' + id + '/score?score=' + score, { method: 'PUT' });
-        showMsg(await res.text());
-        loadStudents();
+        const score = prompt('请输入学号 ' + id + ' 的新成绩：');
+        if (score === null) {
+            return;
+        }
+        try {
+            const res = await request('/students/' + id + '/score?score=' + score, { method: 'PUT' });
+            showMsg(await res.text());
+            await loadPage(currentPage);
+        } catch (e) { /* 已提示 */ }
     }
 
     async function deleteStudent(id) {
-        if (!confirm('确定删除学号 ' + id + ' 吗？')) return;
-        const res = await fetch('/students/' + id, { method: 'DELETE' });
-        showMsg(await res.text());
-        loadStudents();
+        if (!confirm('确定删除学号 ' + id + ' 吗？')) {
+            return;
+        }
+        try {
+            const res = await request('/students/' + id, { method: 'DELETE' });
+            showMsg(await res.text());
+            await loadPage(currentPage);
+        } catch (e) { /* 已提示 */ }
     }
 
-    loadStudents();
+    /* ========== 页面加载时先试着拉一次数据 ==========
+       没登录会提示“请先登录”，而不是静默失败 */
+    loadPage(1);
 </script>
 </body>
 </html>
