@@ -1,4 +1,4 @@
-package com.example.scoresystem;
+package com.example.academicwarning;
 
 public class StudentNotFoundException extends RuntimeException{
     public StudentNotFoundException(String message){

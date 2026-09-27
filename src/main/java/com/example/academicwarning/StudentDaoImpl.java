@@ -1,4 +1,4 @@
-package com.example.scoresystem;
+package com.example.academicwarning;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;

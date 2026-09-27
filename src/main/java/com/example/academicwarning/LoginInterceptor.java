@@ -1,4 +1,4 @@
-package com.example.scoresystem;
+package com.example.academicwarning;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;

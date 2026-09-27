@@ -1,4 +1,5 @@
-package com.example.scoresystem;
+package com.example.academicwarning;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -6,7 +7,6 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.function.ToDoubleBiFunction;
 import java.util.LinkedHashMap;
 
 
@@ -119,6 +119,35 @@ public class StudentServiceImpl implements StudentService{
             row.put("id",stu.getId());
             row.put("name",stu.getName());
             row.put("score",stu.getScore());
+            result.add(row);
+        }
+        return result;
+    }
+    @Value("${warning.pass-score:60}")
+    private double passScore;
+
+    @Value("${warning.border-line:10}")
+    private double borderLine;
+
+    @Override
+    public List<Map<String,Object>> warnings(){
+        List<Student> all=studentDao.findAll();
+        List<Map<String,Object>> result=new ArrayList<>();
+        for(Student s:all){
+            String level=null;
+            if(s.getScore()<passScore){
+                level="不及格";
+            }else if(s.getScore()<passScore+borderLine){
+                level="临界";
+            }
+            if(level==null){
+                continue;
+            }
+            Map<String,Object> row=new LinkedHashMap<>();
+            row.put("id",s.getId());
+            row.put("name",s.getName());
+            row.put("score",s.getScore());
+            row.put("level",level);
             result.add(row);
         }
         return result;

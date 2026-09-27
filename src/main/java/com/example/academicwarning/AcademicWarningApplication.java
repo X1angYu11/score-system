@@ -1,13 +1,13 @@
-package com.example.scoresystem;
+package com.example.academicwarning;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
-public class ScoreSystemApplication {
+public class AcademicWarningApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(ScoreSystemApplication.class, args);
+        SpringApplication.run(AcademicWarningApplication.class, args);
     }
 
 }

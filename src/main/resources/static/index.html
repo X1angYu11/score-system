@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>学生成绩管理系统</title>
+    <title>学生成绩管理-预警系统</title>
     <style>
         body { font-family: "Microsoft YaHei", sans-serif; margin: 30px; color: #333; }
         h1 { margin-bottom: 10px; }
@@ -30,6 +30,8 @@
     账号 <input id="username">
     密码 <input id="password" type="password">
     <button onclick="login()">登录</button>
+    <button onclick="register()">注册</button>
+    <button onclick="logout()">退出登录</button>
     <span id="msg" class="msg"></span>
 </div>
 
@@ -38,6 +40,13 @@
     <h3>成绩统计</h3>
     <button onclick="loadStats()">刷新统计</button>
     <div id="stats" class="stats">（登录后点“刷新统计”）</div>
+</div>
+
+<!-- ================= 学业预警 ================= -->
+<div>
+    <h3>学业预警</h3>
+    <button onclick="loadWarnings()">查看预警名单</button>
+    <div id="warnings" class="stats">（登录后点击查看；规则：低于 60 分不及格预警，60~70 分为临界预警）</div>
 </div>
 
 <!-- ================= 查询 ================= -->
@@ -161,6 +170,52 @@
         }
     }
 
+    /* ========== 注册 ==========
+       注册只是创建账号，不会自动登录（要再点一次“登录”） */
+    async function register() {
+        try {
+            const res = await fetch('/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    username: document.getElementById('username').value,
+                    password: document.getElementById('password').value
+                })
+            });
+            const text = await res.text();
+
+            if (!res.ok) {
+                let message = 'HTTP ' + res.status;
+                try {
+                    const body = JSON.parse(text);
+                    if (body && body.message) {
+                        message = body.message;
+                    }
+                } catch (e) { /* 不是 JSON */ }
+                showMsg(message, 'error');
+                return;
+            }
+
+            showMsg(text + '（请再点“登录”）');
+        } catch (e) {
+            showMsg('注册失败：' + e.message, 'error');
+        }
+    }
+
+    /* ========== 退出登录 ==========
+       后端会调 session.invalidate()，让服务器端的会话作废 */
+    async function logout() {
+        try {
+            const res = await request('/logout', { method: 'POST' });
+            showMsg(await res.text());
+            render([]);
+            document.getElementById('stats').innerText = '（已退出登录）';
+            document.getElementById('pageInfo').innerText = '-';
+        } catch (e) {
+            /* 已提示 */
+        }
+    }
+
     /* ========== 表格渲染 ========== */
     function render(rows) {
         const tbody = document.getElementById('tbody');
@@ -259,6 +314,27 @@
                 '<span>最低分：<b>' + s.minScore + '</b></span>' +
                 '<span>及格人数：<b>' + s.passCount + '</b></span>' +
                 '<span>及格率：<b>' + s.passRate + '%</b></span>';
+        } catch (e) { /* 已提示 */ }
+    }
+
+    /* ========== 学业预警 ========== */
+    async function loadWarnings() {
+        try {
+            const list = await (await request('/students/warnings')).json();
+            const box = document.getElementById('warnings');
+
+            if (!Array.isArray(list) || list.length === 0) {
+                box.innerText = '没有需要预警的学生';
+                return;
+            }
+
+            box.innerHTML = '';
+            for (const w of list) {
+                const color = (w.level === '不及格') ? '#c0392b' : '#b8860b';
+                box.innerHTML +=
+                    '<div>' + w.id + ' ' + w.name + ' — ' + w.score + ' 分 → ' +
+                    '<b style="color:' + color + '">' + w.level + '预警</b></div>';
+            }
         } catch (e) { /* 已提示 */ }
     }
 

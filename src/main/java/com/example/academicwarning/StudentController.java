@@ -1,12 +1,11 @@
-package com.example.scoresystem;
+package com.example.academicwarning;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.http.HttpStatus;
-import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.bind.annotation.PutMapping;//改
 import  org.springframework.web.bind.annotation.DeleteMapping;//删
+import jakarta.validation.Valid;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -37,7 +36,7 @@ public class StudentController {
         return stu;
     }
     @PostMapping("/students")
-    public String insert(@RequestBody Student stu){
+    public String insert(@Valid @RequestBody Student stu){
         studentService.insert(stu);
         return "添加成功"+stu.getName();
     }
@@ -85,4 +84,9 @@ public class StudentController {
     public List<Map<String, Object>> findTop(@RequestParam int n){
         return studentService.findTop(n);
     }
+    @GetMapping("/students/warnings")
+    public List<Map<String,Object>> warnings(){
+        return studentService.warnings();
+    }
+
 }

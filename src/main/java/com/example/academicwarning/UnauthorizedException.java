@@ -1,4 +1,4 @@
-package com.example.scoresystem;
+package com.example.academicwarning;
 
 public class UnauthorizedException extends RuntimeException{
     public UnauthorizedException(String message) {

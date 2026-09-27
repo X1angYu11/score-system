@@ -1,4 +1,4 @@
-package com.example.scoresystem;
+package com.example.academicwarning;
 import java.util.List;
 import java.util.Map;
 
@@ -23,4 +23,5 @@ public interface StudentService {
     Map<String, Object> stats();
 
     List<Map<String, Object>> findTop(int n);
+    List<Map<String,Object>> warnings();
 }

@@ -1,4 +1,4 @@
-package com.example.scoresystem;
+package com.example.academicwarning;
 import java.util.Map;
 import java.util.List;
 public interface StudentDao {
