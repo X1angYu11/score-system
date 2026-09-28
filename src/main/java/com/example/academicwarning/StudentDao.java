@@ -23,4 +23,6 @@ public interface StudentDao {
     Map<String,Object> stats();
 
     List<Student> findTop(int n);
+
+    List<Student> findRange(double minScore, double maxScore);
 }

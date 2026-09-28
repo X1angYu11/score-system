@@ -73,4 +73,8 @@ public class StudentDaoImpl implements StudentDao{
         return jdbcTemplate.query(sql,(rs,rowNum)->new Student(rs.getString("id"),
                 rs.getString("name"),rs.getDouble("score")),n);
     }
+    @Override
+    public List<Student> findRange(double minScore, double maxScore){
+        return jdbcTemplate.query("select id,name,score from student where score between ? and ?",(rs,rowNum)->new Student(rs.getString("id"),rs.getString("name"),rs.getDouble("score")),minScore,maxScore);
+    }
 }

@@ -32,4 +32,9 @@ public class GlobalExceptionHandler {
         }
         return Map.of("code", 400, "message", sb.toString());
     }
+    @ExceptionHandler(BadRequestException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public Map<String, Object> handleBadRequest(BadRequestException e) {
+        return Map.of("code", 400, "message", e.getMessage());
+    }
 }

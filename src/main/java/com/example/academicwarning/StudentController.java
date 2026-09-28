@@ -89,4 +89,9 @@ public class StudentController {
         return studentService.warnings();
     }
 
+    @GetMapping("/students/score-range")
+    public List<Student> findRange(@RequestParam double minScore, @RequestParam double maxScore){
+        return studentService.findRange(minScore,maxScore);
+    }
+
 }

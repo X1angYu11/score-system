@@ -24,4 +24,6 @@ public interface StudentService {
 
     List<Map<String, Object>> findTop(int n);
     List<Map<String,Object>> warnings();
+
+    List<Student> findRange(double minScore, double maxScore);
 }
