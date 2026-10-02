@@ -1,5 +1,9 @@
 package com.example.academicwarning;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,6 +19,8 @@ import java.util.LinkedHashMap;
 public class StudentServiceImpl implements StudentService{
     @Autowired
     private StudentDao studentDao;
+    @Autowired
+    private StudentMapper studentMapper;
     @Override
     public List<Student> findAll(){
         return studentDao.findAll();
@@ -28,14 +34,17 @@ public class StudentServiceImpl implements StudentService{
         return studentDao.findByName(name);
     }
     @Override
+    @CacheEvict(value = "stats", key = "'all'")
     public int insert(Student stu){
         return studentDao.insert(stu);
     }
     @Override
+    @CacheEvict(value = "stats", key = "'all'")
     public int updateScore(String id,double score){
         return studentDao.updateScore(id,score);
     }
     @Override
+    @CacheEvict(value = "stats", key = "'all'")
     public int deleteById(String id){
         return studentDao.deleteById(id);
     }
@@ -45,6 +54,7 @@ public class StudentServiceImpl implements StudentService{
     }
     @Override
     @Transactional
+    @CacheEvict(value = "stats", key = "'all'")
     public int insertBatch(List<Student> students){
         int count=0;
         for(Student stu:students){
@@ -70,8 +80,10 @@ public class StudentServiceImpl implements StudentService{
     public int count(){
         return studentDao.count();
     }
+    @Cacheable(value = "stats", key = "'all'")
     @Override
     public Map<String,Object> stats(){
+        log.info("【缓存未命中】正在查数据库计算统计");
         Map<String,Object> raw=studentDao.stats();
         long total=toLong(raw.get("total"));
         long passCount=toLong(raw.get("passCount"));
@@ -156,9 +168,16 @@ public class StudentServiceImpl implements StudentService{
     @Override
     public List<Student> findRange(double minScore, double maxScore){
         if(minScore<=maxScore){
-            return studentDao.findRange(minScore, maxScore);
+            return studentMapper.findRange(minScore, maxScore);
         }else{
             throw new BadRequestException("Invalid score range");
         }
     }
+    @Override
+    public List<Student> query(String name, Double minScore, Double maxScore){
+        return studentMapper.query(name, minScore, maxScore);
+    }
+    private static final Logger log = LoggerFactory.getLogger(StudentServiceImpl.class);
+
+
 }

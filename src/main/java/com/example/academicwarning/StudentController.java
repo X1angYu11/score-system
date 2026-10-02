@@ -15,6 +15,7 @@ import java.util.Map;
 public class StudentController {
     @Autowired
     private StudentService studentService;
+    @Autowired AiService aiService;
     @GetMapping("/students")
     public List<Student> studentfindall(){
         return studentService.findAll();
@@ -92,6 +93,14 @@ public class StudentController {
     @GetMapping("/students/score-range")
     public List<Student> findRange(@RequestParam double minScore, @RequestParam double maxScore){
         return studentService.findRange(minScore,maxScore);
+    }
+    @GetMapping("/students/query")
+    public List<Student> query(@RequestParam(required = false) String name,@RequestParam(required = false) Double minScore,@RequestParam(required = false) Double maxScore){
+        return studentService.query(name,minScore,maxScore);
+    }
+    @GetMapping("/students/ai-analysis")
+    public String aiAnalysis(){
+        return aiService.analyzeStudents();
     }
 
 }

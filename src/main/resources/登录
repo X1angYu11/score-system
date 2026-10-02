@@ -1,0 +1,2 @@
+$r = Invoke-WebRequest -Uri "http://localhost:8080/login" -Method Post -ContentType "application/json; charset=utf-8" -Body '{"username":"zxy","password":"123456"}' -SessionVariable sess
+$r.Content

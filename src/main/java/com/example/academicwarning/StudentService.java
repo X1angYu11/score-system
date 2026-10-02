@@ -26,4 +26,6 @@ public interface StudentService {
     List<Map<String,Object>> warnings();
 
     List<Student> findRange(double minScore, double maxScore);
+
+    List<Student> query(String name,Double minScore,Double maxScore);
 }
