@@ -4,6 +4,8 @@
 
 基于 **Spring Boot + MySQL**，采用 **Controller / Service / Dao 三层架构**，对外提供 RESTful 接口，并自带网页操作界面。
 
+在此基础上继续集成了 **MyBatis**（动态 SQL）、**Redis 缓存**、**Spring AOP**、**大模型调用（DeepSeek）** 与 **JUnit + Mockito 单元测试**。
+
 ![界面截图](screenshot.png)
 
 ## ✨ 功能
@@ -18,6 +20,10 @@
 - **学业预警**：按阈值识别不及格 / 临界学生，**阈值可在配置文件调整**
 - **批量导入**：一次提交多个学生，由事务保证**全部成功或全部回滚**
 - **参数校验**：学号/姓名非空、成绩 0~100，校验失败统一返回 400
+- **课程管理**：课程信息增删改查（独立模块，MyBatis Mapper 直接作为数据层）
+- **AI 班级分析**：把全班成绩与预警名单拼成提示词交给大模型，返回班级整体分析与教学建议
+- **AI 个性化建议**：`/students/ai-advice/{id}` 针对**单个学生**，结合其分数与预警等级生成学习建议
+- **Redis 缓存**：统计与 AI 结果进缓存，写操作自动清缓存；AI 调用配置了连接/读取超时，失败统一返回 **503**
 - 资源不存在返回标准 **404**，错误响应格式统一
 - 自带网页界面，浏览器即可完成全部操作
 
@@ -41,6 +47,13 @@
 | 批量导入学生 | `/students/batch` | POST（JSON 数组） | 是 |
 | 修改成绩 | `/students/{id}/score?score=xx` | PUT | 是 |
 | 删除学生 | `/students/{id}` | DELETE | 是 |
+| AI 班级成绩分析 | `/students/ai-analysis` | GET | 是 |
+| AI 单个学生建议 | `/students/ai-advice/{id}` | GET | 是 |
+| 查询全部课程 | `/courses` | GET | 是 |
+| 按课程号查询 | `/courses/{courseId}` | GET | 是 |
+| 添加课程 | `/courses` | POST（JSON body） | 是 |
+| 修改课程 | `/courses/{courseId}` | PUT（JSON body） | 是 |
+| 删除课程 | `/courses/{courseId}` | DELETE | 是 |
 
 **统一错误响应格式**（由 `@RestControllerAdvice` 全局异常处理器返回）：
 
@@ -50,19 +63,24 @@
 
 | 状态码 | 场景 |
 |---|---|
-| 400 | 参数校验失败（如成绩为负、姓名空）、区间参数非法（min > max） |
+| 400 | 参数校验失败（如成绩为负、姓名空、学分超范围）、区间参数非法（min > max）、主键/唯一键冲突 |
 | 401 | 未登录或会话已过期 |
-| 404 | 学生不存在；修改/删除未命中数据 |
+| 404 | 学生 / 课程不存在；修改或删除未命中数据 |
+| 503 | 依赖的 AI 服务不可用（网络异常、超时、API 返回错误码） |
 
 ## 🧱 技术栈
 
 | 分类 | 技术 |
 |---|---|
 | 语言 / 框架 | Java 25、Spring Boot 4.1.1、Spring MVC、Spring JDBC、Spring 事务管理 |
+| 持久层 | JdbcTemplate（学生模块）+ **MyBatis**（课程模块、动态 SQL） |
+| 缓存 | **Redis** + Spring Cache 注解（`@Cacheable` / `@CacheEvict`），Jedis 客户端 |
+| AOP | Spring AOP（`@Aspect` + `@Around`，记录接口调用耗时） |
 | 鉴权 | HttpSession + HandlerInterceptor（拦截器） |
 | 安全 | BCrypt 密码哈希（spring-security-crypto）、SQL 参数化查询 |
 | 校验 | Jakarta Bean Validation（`@Valid`） |
 | 数据库 | MySQL 8（HikariCP 连接池 + 索引优化） |
+| AI | `RestClient` 调用 DeepSeek Chat API（配置连接/读取超时） |
 | 测试 | JUnit 5 + Mockito（Service 层单元测试） |
 | 构建 / 工具 | Maven、Git |
 | 前端 | 原生 HTML + Fetch API |
@@ -90,6 +108,15 @@ CREATE TABLE IF NOT EXISTS sys_user (
     password VARCHAR(100) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- 课程表（课程模块）
+CREATE TABLE IF NOT EXISTS course (
+    course_id   VARCHAR(10)  NOT NULL,
+    course_name VARCHAR(20)  NOT NULL,
+    credit      DECIMAL(3,1) NOT NULL,
+    teacher     VARCHAR(20),
+    PRIMARY KEY (course_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- 索引（见下方"数据库设计与索引"说明）
 ALTER TABLE student ADD INDEX idx_score (score);
 ALTER TABLE student ADD INDEX idx_name  (name);
@@ -103,6 +130,16 @@ ALTER TABLE student ADD INDEX idx_name  (name);
 spring.datasource.url=jdbc:mysql://localhost:3306/score_db?useSSL=false&serverTimezone=Asia/Shanghai&characterEncoding=utf8
 spring.datasource.username=root
 spring.datasource.password=你的密码
+
+# Redis（缓存；不启动 Redis 会导致带缓存注解的接口报错）
+spring.data.redis.host=localhost
+spring.data.redis.port=6379
+spring.cache.redis.time-to-live=60s
+
+# DeepSeek（key 从环境变量读，不要写死在文件里）
+deepseek.api-key=${DEEPSEEK_API_KEY:}
+deepseek.api-url=https://api.deepseek.com/chat/completions
+deepseek.model=deepseek-chat
 ```
 
 ### 3. 启动
@@ -165,13 +202,26 @@ src/main/java/com/example/academicwarning/
 ├── UserDao.java / UserDaoImpl.java            用户数据访问
 ├── LoginInterceptor.java            登录拦截器（preHandle 中校验会话）
 ├── WebConfig.java                   注册拦截器与拦截路径
-├── StudentNotFoundException.java    自定义业务异常（404）
+├── StudentNotFoundException.java    学生不存在异常（404）
+├── CourseNotFoundException.java     课程不存在异常（404）
 ├── UnauthorizedException.java       自定义鉴权异常（401）
 ├── BadRequestException.java         自定义参数异常（400）
+├── AiServiceException.java          AI 调用失败异常（503）
+├── LogAspect.java                   AOP 切面：记录 Controller 调用耗时
+│
+├── Course.java                      课程实体（含校验注解）
+├── CourseMapper.java                课程数据层：MyBatis @Mapper 接口（注解式 SQL）
+├── CourseService.java               课程业务层接口
+├── CourseServiceImpl.java           课程业务层实现（不存在则抛异常）
+├── CourseController.java            课程接口：增删改查
+│
+├── AiService.java                   AI 业务层接口
+├── AiServiceImpl.java               AI 实现：拼提示词 → RestClient 调 DeepSeek → 解析 JSON
 └── GlobalExceptionHandler.java      全局异常处理器（@RestControllerAdvice）
 
 src/test/java/com/example/academicwarning/
-└── StudentServiceImplTest.java      Service 层单元测试（Mockito 模拟 Dao）
+├── StudentServiceImplTest.java      Service 层单元测试（Mockito 模拟 Dao）
+└── CourseServiceImplTest.java       课程模块 Service 层单元测试
 
 src/main/resources/
 ├── application.properties           数据库连接、连接池、预警阈值、JSON 格式化
@@ -203,6 +253,7 @@ GlobalExceptionHandler（异常统一转成 {code, message}）       ← 横切
 | 表 | 字段 | 说明 |
 |---|---|---|
 | `student` | id (PK) / name / score | 学生成绩 |
+| `course` | course_id (PK) / course_name / credit / teacher | 课程信息，`credit` 用 `DECIMAL(3,1)` 而非 `DOUBLE`（避免浮点误差） |
 | `sys_user` | id (PK, 自增) / username (唯一) / password | 密码存 **BCrypt 哈希**，不存明文 |
 
 ### 索引（有意识设计，不是随手加的）
@@ -252,6 +303,8 @@ mvn test        # 或在 IDEA 里点测试类旁的绿色三角
 | **v2.1** | 健壮性增强 | 全局异常处理、批量导入事务、按影响行数返回 404 |
 | **v2.2** | 功能与安全完善 | 登录鉴权（Session + 拦截器）、分页、统计、排行榜；前端接入全部接口 |
 | **v2.3** | 学业预警与质量保障 | 学业预警（阈值可配）、成绩区间查询、参数校验、BCrypt 密码加密、数据库索引、Service 层单元测试 |
+| **v2.4** | 缓存与大模型接入 | 接入 Redis 缓存（Spring Cache 注解）、AI 班级成绩分析接口 |
+| **v2.5** | AI 能力完善 + 课程模块 | 单学生 AI 建议接口 + 超时与异常处理（503）；独立完成课程模块（MyBatis + 参数校验 + 单元测试）；判空职责从 Controller 下沉到 Service |
 
 **关键改进说明**：
 
@@ -265,6 +318,11 @@ mvn test        # 或在 IDEA 里点测试类旁的绿色三角
 8. **分页正确性（v2.2）**：分页使用 `ORDER BY id LIMIT offset, size`，**必须带确定性排序**，否则翻页可能出现重复或漏读。
 9. **密码安全（v2.3）**：密码用 **BCrypt** 哈希存储（含随机盐、计算强度 10），不存明文；校验用 `matches()` 而非 `equals()`。
 10. **查询性能（v2.3）**：给高频查询列建索引，并用 `EXPLAIN` 验证 `type` 从 `ALL` 变为 `range`；同时认识到索引会拖慢写入，避免滥用。
+11. **缓存（v2.4）**：统计与 AI 结果加 `@Cacheable`，写操作加 `@CacheEvict` 保证一致性。`@Cacheable` 必须打在**被外部调用的方法**上——同类内部自调用（`this.chat(...)`）不经过 Spring 代理，注解会**静默失效**。
+12. **AI 调用的健壮性（v2.5）**：`RestClient` 默认是"无限等待"，依赖服务抽风时 Tomcat 线程会被逐个占满并引发级联故障；显式配置连接超时 5s / 读取超时 30s，并把 `RestClientException` 翻译成业务异常，由全局处理器返回 **503**（依赖不可用）而不是 500（自身 bug）。
+13. **异常职责归属（v2.5）**：查询"不存在则报错"原先写在 Controller 里，导致每个入口都要重复判空、漏写一处就是 500。改为在 **Service 层**统一抛出 `NotFoundException`，所有调用方自动获得 404。
+14. **MyBatis 使用要点（v2.5）**：`#{}` 里写的是 **Java 字段名**而不是数据库列名；单个对象参数**不要**加 `@Param`（加了会被包成 Map，反而取不到属性）；多个参数则**必须**用 `@Param` 命名。
+15. **参数校验的时机（v2.5）**：`@Valid` 在**方法体执行之前**就完成校验，因此"在方法体里补上的字段"（例如用路径参数覆盖请求体里的 id）**不参与校验**，需要借助校验分组或 DTO 才能解决。
 
 ## ❓ 常见问题
 
@@ -279,3 +337,8 @@ mvn test        # 或在 IDEA 里点测试类旁的绿色三角
 | PowerShell 里 curl 传 JSON 报错 | `curl.exe` 在 PowerShell 中会吞掉 JSON 的引号，改用 `Invoke-RestMethod` + 单引号包 JSON |
 | `java -jar` 与 IDEA 运行结果不一致 | jar 是打包时的快照，源码改动需重新打包才会生效 |
 | 索引加了但 `EXPLAIN` 仍显示 `ALL` | 表数据太少，优化器认为全表扫描更快；数据量大时才会走索引 |
+| 带缓存注解的接口报 `RedisConnectionFailureException` | Redis 没启动。先启动 `redis-server.exe` 再重试 |
+| AI 接口返回 `503 {"code":503,...}` | 依赖的 AI 服务不可用：检查 `DEEPSEEK_API_KEY` 是否配置、网络是否可达、是否触发超时 |
+| 新增/修改接口返回 **415** | 请求没带 `Content-Type`。调用 POST/PUT 必须带 `application/json` |
+| PowerShell 用 `-ContentType $变量` 结果全 415 | 变量为空时 PowerShell **不报错**，只是不发这个头。改用字面量字符串，或在脚本开头加 `Set-StrictMode -Version Latest` |
+| 单元测试全绿却没真正测到东西 | 常见"假绿"：在打桩之前就调用了被测方法，断言的是 Mock 默认值。顺序必须是 **准备 → 打桩 → 执行 → 断言** |
