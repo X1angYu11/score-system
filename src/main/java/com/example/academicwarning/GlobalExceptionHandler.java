@@ -1,4 +1,5 @@
 package com.example.academicwarning;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -36,5 +37,20 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public Map<String, Object> handleBadRequest(BadRequestException e) {
         return Map.of("code", 400, "message", e.getMessage());
+    }
+    @ExceptionHandler(AiServiceException.class)
+    @ResponseStatus(HttpStatus.SERVICE_UNAVAILABLE)
+    public Map<String,Object> handleAiService(AiServiceException e){
+        return Map.of("code", 503, "message", e.getMessage());
+    }
+    @ExceptionHandler(CourseNotFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public Map<String, Object> handleCourseNotFound(CourseNotFoundException e) {
+        return Map.of("code", 404, "message", e.getMessage());
+    }
+    @ExceptionHandler(DuplicateKeyException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public Map<String, Object> handleDuplicateKey(DuplicateKeyException e) {
+        return Map.of("code", 400, "message", "数据已存在");
     }
 }

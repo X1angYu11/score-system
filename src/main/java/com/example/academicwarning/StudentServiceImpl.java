@@ -27,24 +27,28 @@ public class StudentServiceImpl implements StudentService{
     }
     @Override
     public Student findById(String id){
-        return studentDao.findById(id);
+        Student s = studentDao.findById(id);
+        if (s == null) {
+            throw new StudentNotFoundException("学生" + id + "不存在");
+        }
+        return s;
     }
     @Override
     public Student findByName(String name){
         return studentDao.findByName(name);
     }
     @Override
-    @CacheEvict(value = "stats", key = "'all'")
+    @CacheEvict(value = {"stats", "aiAdvice", "aiAnalysis"}, allEntries = true)
     public int insert(Student stu){
         return studentDao.insert(stu);
     }
     @Override
-    @CacheEvict(value = "stats", key = "'all'")
+    @CacheEvict(value = {"stats", "aiAdvice", "aiAnalysis"}, allEntries = true)
     public int updateScore(String id,double score){
         return studentDao.updateScore(id,score);
     }
     @Override
-    @CacheEvict(value = "stats", key = "'all'")
+    @CacheEvict(value = {"stats", "aiAdvice", "aiAnalysis"}, allEntries = true)
     public int deleteById(String id){
         return studentDao.deleteById(id);
     }
@@ -54,7 +58,7 @@ public class StudentServiceImpl implements StudentService{
     }
     @Override
     @Transactional
-    @CacheEvict(value = "stats", key = "'all'")
+    @CacheEvict(value = {"stats", "aiAdvice", "aiAnalysis"}, allEntries = true)
     public int insertBatch(List<Student> students){
         int count=0;
         for(Student stu:students){
@@ -80,7 +84,7 @@ public class StudentServiceImpl implements StudentService{
     public int count(){
         return studentDao.count();
     }
-    @Cacheable(value = "stats", key = "'all'")
+    @Cacheable(value = {"stats", "aiAdvice", "aiAnalysis"}, key = "'all'")
     @Override
     public Map<String,Object> stats(){
         log.info("【缓存未命中】正在查数据库计算统计");

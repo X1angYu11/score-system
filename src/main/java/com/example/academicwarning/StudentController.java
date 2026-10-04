@@ -23,9 +23,6 @@ public class StudentController {
     @GetMapping("/students/{id}")
     public Student studentfindbyid(@PathVariable String id){
         Student stu= studentService.findById(id);
-        if(stu==null){
-            throw new StudentNotFoundException("学生"+id+"不存在");
-        }
         return stu;
     }
     @GetMapping("/students/search")
@@ -102,5 +99,8 @@ public class StudentController {
     public String aiAnalysis(){
         return aiService.analyzeStudents();
     }
-
+    @GetMapping("/students/ai-advice/{id}")
+    public String aiAdvice(@PathVariable String id){
+        return aiService.adviseStudent(id);
+    }
 }
