@@ -1,0 +1,223 @@
+###############################################################################
+#  学生学业预警系统 —— 接口速查（IDEA 内置 HTTP Client）
+#
+#  用法：
+#    1. 先跑【2. 登录】，它会把 JSESSIONID 自动存进变量 {{sid}}
+#    2. 之后每个请求都自动带会话，点每行左边的绿色 ▶ 就能发
+#    3. 再也不用开 PowerShell 敲命令了
+#
+#  前置：MySQL + Redis + Spring Boot 都已在运行
+###############################################################################
+
+
+### 1. 注册账号（首次使用；用户名已存在会返回提示）
+POST http://localhost:8080/register
+Content-Type: application/json
+
+{
+  "username": "zxy",
+  "password": "123456"
+}
+
+
+### 2. 登录  ← 先跑这个，后面才能免登录
+POST http://localhost:8080/login
+Content-Type: application/json
+
+{
+  "username": "zxy",
+  "password": "123456"
+}
+
+> {%
+    client.global.set("sid", response.headers.valueOf("Set-Cookie").split(";")[0]);
+    client.log("会话已保存：" + client.global.get("sid"));
+%}
+
+
+### 3. 退出登录
+POST http://localhost:8080/logout
+Cookie: {{sid}}
+
+
+###############################################################################
+#  学生
+###############################################################################
+
+### 4. 查询全部学生
+GET http://localhost:8080/students
+Cookie: {{sid}}
+
+
+### 5. 按学号查询
+GET http://localhost:8080/students/001
+Cookie: {{sid}}
+
+
+### 6. 按姓名查询
+GET http://localhost:8080/students/search?name=张三
+Cookie: {{sid}}
+
+
+### 7. 按成绩降序排列
+GET http://localhost:8080/students/sort
+Cookie: {{sid}}
+
+
+### 8. 分页查询
+GET http://localhost:8080/students/page?page=1&size=3
+Cookie: {{sid}}
+
+
+### 9. 成绩统计（带缓存：第二次会明显变快）
+GET http://localhost:8080/students/stats
+Cookie: {{sid}}
+
+
+### 10. 成绩排行榜
+GET http://localhost:8080/students/top?n=3
+Cookie: {{sid}}
+
+
+### 11. 学业预警名单
+GET http://localhost:8080/students/warnings
+Cookie: {{sid}}
+
+
+### 12. 成绩区间查询
+GET http://localhost:8080/students/score-range?minScore=60&maxScore=90
+Cookie: {{sid}}
+
+
+### 13. 多条件组合查询（MyBatis 动态 SQL：参数都可选）
+GET http://localhost:8080/students/query?minScore=60&maxScore=95
+Cookie: {{sid}}
+
+
+### 14. 添加学生
+POST http://localhost:8080/students
+Cookie: {{sid}}
+Content-Type: application/json
+
+{
+  "id": "008",
+  "name": "小明",
+  "score": 88.5
+}
+
+
+### 15. 批量导入（事务保证：要么全成功，要么全回滚）
+POST http://localhost:8080/students/batch
+Cookie: {{sid}}
+Content-Type: application/json
+
+[
+  { "id": "T01", "name": "批量A", "score": 80 },
+  { "id": "T02", "name": "批量B", "score": 85 }
+]
+
+
+### 16. 修改成绩
+PUT http://localhost:8080/students/008/score?score=95
+Cookie: {{sid}}
+
+
+### 17. 删除学生
+DELETE http://localhost:8080/students/008
+Cookie: {{sid}}
+
+
+###############################################################################
+#  课程
+###############################################################################
+
+### 18. 查询全部课程
+GET http://localhost:8080/courses
+Cookie: {{sid}}
+
+
+### 19. 按课程号查询
+GET http://localhost:8080/courses/C001
+Cookie: {{sid}}
+
+
+### 20. 添加课程
+POST http://localhost:8080/courses
+Cookie: {{sid}}
+Content-Type: application/json
+
+{
+  "courseId": "C001",
+  "courseName": "高等数学",
+  "credit": 4.0,
+  "teacher": "张老师"
+}
+
+
+### 21. 修改课程（路径里的 id 是权威，body 里也要带且保持一致）
+PUT http://localhost:8080/courses/C001
+Cookie: {{sid}}
+Content-Type: application/json
+
+{
+  "courseId": "C001",
+  "courseName": "高等数学(上)",
+  "credit": 5.0,
+  "teacher": "李老师"
+}
+
+
+### 22. 删除课程
+DELETE http://localhost:8080/courses/C001
+Cookie: {{sid}}
+
+
+###############################################################################
+#  AI（需要环境变量 DEEPSEEK_API_KEY，否则返回 503）
+###############################################################################
+
+### 23. AI 班级成绩分析
+GET http://localhost:8080/students/ai-analysis
+Cookie: {{sid}}
+
+
+### 24. AI 单个学生学习建议
+GET http://localhost:8080/students/ai-advice/005
+Cookie: {{sid}}
+
+
+###############################################################################
+#  错误分支（重点看 HTTP 状态码 和 {code,message}）
+###############################################################################
+
+### 25. 参数校验失败 → 400（课程名为空）
+POST http://localhost:8080/courses
+Cookie: {{sid}}
+Content-Type: application/json
+
+{
+  "courseId": "C002",
+  "courseName": "",
+  "credit": 3.0
+}
+
+
+### 26. 课程号重复 → 400
+POST http://localhost:8080/courses
+Cookie: {{sid}}
+Content-Type: application/json
+
+{
+  "courseId": "C001",
+  "courseName": "重复的课程",
+  "credit": 3.0
+}
+
+
+### 27. 课程不存在 → 404
+GET http://localhost:8080/courses/C999
+Cookie: {{sid}}
+
+
+### 28. 不带会话 → 401（这个故意不加 Cookie）
+GET http://localhost:8080/students

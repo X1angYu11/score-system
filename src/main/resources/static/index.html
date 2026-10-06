@@ -2,118 +2,441 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>学生成绩管理-预警系统</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>学生学业预警系统</title>
     <style>
-        body { font-family: "Microsoft YaHei", sans-serif; margin: 30px; color: #333; }
-        h1 { margin-bottom: 10px; }
-        h3 { margin: 18px 0 6px; }
-        table { border-collapse: collapse; margin-top: 15px; }
-        th, td { border: 1px solid #ccc; padding: 6px 14px; text-align: center; }
-        th { background: #f0f0f0; }
-        button { margin: 3px; padding: 5px 12px; cursor: pointer; }
-        input { padding: 4px; margin: 3px; width: 100px; }
-        textarea { width: 100%; max-width: 720px; padding: 6px; font-family: Consolas, monospace; }
-        .msg { margin-left: 10px; font-weight: bold; }
-        .msg-ok { color: #1a7f37; }
-        .msg-error { color: #c0392b; }
-        .stats { margin-top: 8px; padding: 8px 12px; background: #f7f9fc; border: 1px solid #e0e6ed; border-radius: 4px; }
-        .stats span { margin-right: 18px; }
-        .page-info { margin: 0 10px; }
+        :root {
+            --bg:           #f4f6fb;
+            --card:         #ffffff;
+            --border:       #e3e8f0;
+            --text:         #1f2937;
+            --muted:        #6b7280;
+            --primary:      #3b5bdb;
+            --primary-dark: #2f49b0;
+            --primary-soft: #eef2ff;
+            --danger:       #d64545;
+            --ok:           #0f8a4a;
+            --warn:         #b8860b;
+            --radius:       12px;
+            --shadow:       0 1px 2px rgba(16, 24, 40, .05), 0 1px 3px rgba(16, 24, 40, .04);
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            background: var(--bg);
+            color: var(--text);
+            font-family: "Microsoft YaHei", "PingFang SC", "Segoe UI", system-ui, sans-serif;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        /* ============ 顶栏 ============ */
+        header {
+            position: sticky;
+            top: 0;
+            z-index: 20;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 28px;
+            background: #fff;
+            border-bottom: 1px solid var(--border);
+        }
+        .brand { font-size: 17px; font-weight: 700; letter-spacing: .3px; }
+        .brand small { display: block; font-size: 11px; font-weight: 400; color: var(--muted); letter-spacing: 0; }
+        .spacer { flex: 1; }
+        .user-badge {
+            font-size: 12px;
+            padding: 5px 12px;
+            border-radius: 999px;
+            background: var(--primary-soft);
+            color: var(--primary);
+            font-weight: 600;
+        }
+        .user-badge.off { background: #f1f3f7; color: var(--muted); }
+
+        .wrap { max-width: 1120px; margin: 0 auto; padding: 22px 28px 70px; }
+
+        /* ============ 卡片 ============ */
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 18px 20px;
+            margin-bottom: 16px;
+        }
+        .card h3 {
+            margin: 0 0 14px;
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .card h3 .hint { font-size: 12px; font-weight: 400; color: var(--muted); }
+
+        .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+        .row + .row { margin-top: 10px; }
+        .sep { width: 1px; height: 20px; background: var(--border); margin: 0 4px; }
+        .grow { flex: 1; }
+
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        @media (max-width: 860px) { .grid-2 { grid-template-columns: 1fr; } }
+
+        /* ============ 标签页 ============ */
+        .tabs {
+            display: flex;
+            gap: 4px;
+            padding: 5px;
+            margin-bottom: 16px;
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+        }
+        .tab {
+            flex: 0 0 auto;
+            padding: 9px 18px;
+            border: none;
+            border-radius: 8px;
+            background: none;
+            font-size: 13.5px;
+            font-weight: 600;
+            color: var(--muted);
+            cursor: pointer;
+            transition: background .15s, color .15s;
+        }
+        .tab:hover { background: #f5f7fc; color: var(--text); }
+        .tab.active { background: var(--primary); color: #fff; }
+        .tab.active:hover { background: var(--primary-dark); color: #fff; }
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; }
+
+        /* ============ 表单控件 ============ */
+        input, textarea {
+            font-family: inherit;
+            font-size: 13px;
+            padding: 7px 11px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: #fff;
+            color: var(--text);
+            transition: border-color .15s, box-shadow .15s;
+        }
+        input { width: 118px; }
+        input.w-sm { width: 74px; }
+        input.w-lg { width: 180px; }
+        textarea { width: 100%; resize: vertical; font-family: Consolas, "Courier New", monospace; }
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(59, 91, 219, .13);
+        }
+        label { font-size: 13px; color: var(--muted); }
+
+        button {
+            font-family: inherit;
+            font-size: 13px;
+            font-weight: 600;
+            padding: 7px 15px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: #fff;
+            color: var(--text);
+            cursor: pointer;
+            transition: background .15s, border-color .15s, color .15s;
+        }
+        button:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-soft); }
+        button.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+        button.primary:hover { background: var(--primary-dark); border-color: var(--primary-dark); color: #fff; }
+        button.danger:hover { border-color: var(--danger); color: var(--danger); background: #fdf0f0; }
+        button.mini { padding: 4px 11px; font-size: 12px; font-weight: 500; }
+
+        /* ============ 表格 ============ */
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th {
+            text-align: left;
+            padding: 10px 12px;
+            background: #f8faff;
+            color: var(--muted);
+            font-weight: 600;
+            font-size: 12.5px;
+            border-bottom: 1px solid var(--border);
+            white-space: nowrap;
+        }
+        th:first-child { border-top-left-radius: 8px; }
+        th:last-child  { border-top-right-radius: 8px; }
+        td { padding: 10px 12px; border-bottom: 1px solid #f0f3f9; }
+        tbody tr:hover td { background: #fafbff; }
+        tbody tr:last-child td { border-bottom: none; }
+        td.empty { text-align: center; color: var(--muted); padding: 22px; }
+
+        /* ============ 信息展示块 ============ */
+        .stats {
+            padding: 12px 16px;
+            background: #f8faff;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 13px;
+            color: var(--muted);
+        }
+        .stats span { display: inline-block; margin-right: 22px; }
+        .stats b { color: var(--text); font-size: 14px; }
+        .warn-item {
+            padding: 8px 0;
+            border-bottom: 1px dashed var(--border);
+            font-size: 13px;
+        }
+        .warn-item:last-child { border-bottom: none; }
+        .tag {
+            display: inline-block;
+            padding: 1px 9px;
+            border-radius: 999px;
+            font-size: 11.5px;
+            font-weight: 700;
+        }
+        .tag-fail { background: #fdecec; color: var(--danger); }
+        .tag-edge { background: #fdf6e3; color: var(--warn); }
+
+        #aiResult {
+            white-space: pre-wrap;
+            line-height: 1.75;
+            min-height: 46px;
+            color: var(--text);
+        }
+
+        .page-info { color: var(--muted); font-size: 13px; }
+
+        /* ============ 右上角提示 ============ */
+        #msg {
+            position: fixed;
+            top: 72px;
+            right: 28px;
+            z-index: 60;
+            display: none;
+            max-width: 420px;
+            padding: 12px 18px;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 600;
+            box-shadow: 0 8px 24px rgba(16, 24, 40, .14);
+        }
+        #msg.show { display: block; }
+        #msg.msg-ok { background: #e7f7ee; color: var(--ok); border: 1px solid #b7e4c7; }
+        #msg.msg-error { background: #fdecec; color: var(--danger); border: 1px solid #f5c2c2; }
     </style>
 </head>
 <body>
-<h1>学生成绩管理系统</h1>
 
-<!-- ================= 登录 ================= -->
-<div>
-    <h3>登录</h3>
-    账号 <input id="username">
-    密码 <input id="password" type="password">
-    <button onclick="login()">登录</button>
-    <button onclick="register()">注册</button>
-    <button onclick="logout()">退出登录</button>
-    <span id="msg" class="msg"></span>
+<header>
+    <div class="brand">📊 学生学业预警系统<small>Student Academic Warning System</small></div>
+    <div class="spacer"></div>
+    <div class="user-badge off" id="whoami">未登录</div>
+</header>
+
+<div class="wrap">
+
+    <!-- ============ 登录 ============ -->
+    <div class="card">
+        <div class="row">
+            <label>账号 <input id="username" placeholder="用户名"></label>
+            <label>密码 <input id="password" type="password" placeholder="密码"></label>
+            <button class="primary" onclick="login()">登录</button>
+            <button onclick="register()">注册</button>
+            <button onclick="logout()">退出登录</button>
+        </div>
+    </div>
+
+    <!-- ============ 标签页 ============ -->
+    <div class="tabs">
+        <button class="tab active" onclick="showTab('score', this)">成绩管理</button>
+        <button class="tab" onclick="showTab('stats', this)">统计分析</button>
+        <button class="tab" onclick="showTab('course', this)">课程管理</button>
+        <button class="tab" onclick="showTab('ai', this)">AI 分析</button>
+    </div>
+
+    <!-- ==================== 成绩管理 ==================== -->
+    <div id="panel-score" class="tab-panel active">
+
+        <div class="card">
+            <h3>查询学生</h3>
+            <div class="row">
+                <button onclick="loadPage(1)">显示全部</button>
+                <button onclick="sortStudents()">按成绩排序</button>
+                <span class="sep"></span>
+                <label>姓名 <input id="searchName" placeholder="姓名"></label>
+                <button onclick="searchByName()">查找</button>
+                <span class="sep"></span>
+                <label>前 <input id="topN" type="number" value="3" class="w-sm"> 名</label>
+                <button onclick="loadTop()">查排行榜</button>
+            </div>
+            <div class="row">
+                <label>每页 <input id="pageSize" type="number" value="3" class="w-sm"> 条</label>
+                <button onclick="loadPage(1)">查询</button>
+                <button onclick="prevPage()">‹ 上一页</button>
+                <span class="page-info" id="pageInfo">-</span>
+                <button onclick="nextPage()">下一页 ›</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>学生列表</h3>
+            <table>
+                <thead>
+                <tr><th>名次</th><th>学号</th><th>姓名</th><th>成绩</th><th style="width:170px">操作</th></tr>
+                </thead>
+                <tbody id="tbody"></tbody>
+            </table>
+        </div>
+
+        <div class="grid-2">
+            <div class="card">
+                <h3>添加学生</h3>
+                <div class="row">
+                    <label>学号 <input id="addId"></label>
+                    <label>姓名 <input id="addName"></label>
+                </div>
+                <div class="row">
+                    <label>成绩 <input id="addScore" type="number" step="0.5"></label>
+                    <button class="primary" onclick="addStudent()">添加</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>批量导入 <span class="hint">JSON 数组，事务保证全成功或全回滚</span></h3>
+                <textarea id="batchJson" rows="4">[{"id":"T01","name":"批量A","score":80},{"id":"T02","name":"批量B","score":85}]</textarea>
+                <div class="row" style="margin-top:10px">
+                    <button class="primary" onclick="batchImport()">批量导入</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== 统计分析 ==================== -->
+    <div id="panel-stats" class="tab-panel">
+
+        <div class="card">
+            <h3>成绩统计 <span class="hint">走 Redis 缓存，第二次会明显变快</span></h3>
+            <div class="row">
+                <button class="primary" onclick="loadStats()">刷新统计</button>
+            </div>
+            <div id="stats" class="stats" style="margin-top:12px">（登录后点「刷新统计」）</div>
+        </div>
+
+        <div class="card">
+            <h3>学业预警 <span class="hint">低于 60 分不及格，60~70 分临界</span></h3>
+            <div class="row">
+                <button class="primary" onclick="loadWarnings()">查看预警名单</button>
+            </div>
+            <div id="warnings" class="stats" style="margin-top:12px">（登录后点击查看）</div>
+        </div>
+    </div>
+
+    <!-- ==================== 课程管理 ==================== -->
+    <div id="panel-course" class="tab-panel">
+
+        <div class="card">
+            <h3>编辑课程 <span class="hint">在下方表格点「编辑」可载入已有课程</span></h3>
+            <div class="row">
+                <label>课程号 <input id="courseId" class="w-sm"></label>
+                <label>课程名 <input id="courseName"></label>
+                <label>学分 <input id="courseCredit" type="number" step="0.5" class="w-sm"></label>
+                <label>教师 <input id="courseTeacher"></label>
+            </div>
+            <div class="row">
+                <button class="primary" onclick="addCourse()">添加课程</button>
+                <button onclick="updateCourse()">保存修改</button>
+                <button onclick="loadCourses()">刷新列表</button>
+                <button onclick="clearCourseForm()">清空表单</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>课程列表</h3>
+            <table>
+                <thead>
+                <tr><th>课程号</th><th>课程名</th><th>学分</th><th>任课教师</th><th style="width:150px">操作</th></tr>
+                </thead>
+                <tbody id="courseTbody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ==================== AI 分析 ==================== -->
+    <div id="panel-ai" class="tab-panel">
+
+        <div class="card">
+            <h3>AI 智能分析 <span class="hint">需要配置 DEEPSEEK_API_KEY，否则返回 503</span></h3>
+            <div class="row">
+                <button class="primary" onclick="aiAnalysis()">班级成绩分析</button>
+                <span class="sep"></span>
+                <label>学号 <input id="aiAdviceId" class="w-sm" placeholder="如 005"></label>
+                <button class="primary" onclick="aiAdvice()">生成该生学习建议</button>
+            </div>
+            <div id="aiResult" class="stats" style="margin-top:12px">（登录后使用；调用大模型需要等几秒）</div>
+        </div>
+    </div>
+
 </div>
 
-<!-- ================= 统计 ================= -->
-<div>
-    <h3>成绩统计</h3>
-    <button onclick="loadStats()">刷新统计</button>
-    <div id="stats" class="stats">（登录后点“刷新统计”）</div>
-</div>
-
-<!-- ================= 学业预警 ================= -->
-<div>
-    <h3>学业预警</h3>
-    <button onclick="loadWarnings()">查看预警名单</button>
-    <div id="warnings" class="stats">（登录后点击查看；规则：低于 60 分不及格预警，60~70 分为临界预警）</div>
-</div>
-
-<!-- ================= 查询 ================= -->
-<div>
-    <h3>查询</h3>
-    <button onclick="loadPage(1)">显示所有学生</button>
-    <button onclick="sortStudents()">按成绩排序</button>
-    姓名 <input id="searchName">
-    <button onclick="searchByName()">按姓名查找</button>
-    &nbsp;|&nbsp;
-    前 <input id="topN" type="number" value="3" style="width:60px"> 名
-    <button onclick="loadTop()">查排行榜</button>
-</div>
-
-<!-- ================= 分页 ================= -->
-<div>
-    <h3>分页浏览</h3>
-    每页 <input id="pageSize" type="number" value="3" style="width:60px"> 条
-    <button onclick="loadPage(1)">查询</button>
-    <button onclick="prevPage()">上一页</button>
-    <span id="pageInfo" class="page-info">-</span>
-    <button onclick="nextPage()">下一页</button>
-</div>
-
-<!-- ================= 添加 ================= -->
-<div>
-    <h3>添加学生</h3>
-    学号 <input id="addId">
-    姓名 <input id="addName">
-    成绩 <input id="addScore" type="number" step="0.5">
-    <button onclick="addStudent()">添加</button>
-</div>
-
-<!-- ================= 批量导入 ================= -->
-<div>
-    <h3>批量导入（JSON 数组，事务保证要么全成功要么全回滚）</h3>
-    <textarea id="batchJson" rows="3">[{"id":"T01","name":"批量A","score":80},{"id":"T02","name":"批量B","score":85}]</textarea>
-    <div><button onclick="batchImport()">批量导入</button></div>
-</div>
-
-<!-- ================= 表格 ================= -->
-<table>
-    <thead>
-    <tr><th>名次</th><th>学号</th><th>姓名</th><th>成绩</th><th>操作</th></tr>
-    </thead>
-    <tbody id="tbody"></tbody>
-</table>
+<div id="msg"></div>
 
 <script>
-    /* ========== 页面状态 ========== */
+    /* ================= 页面状态 ================= */
     let currentPage = 1;
+    let loggedIn = false;
 
-    /* ========== 提示信息 ========== */
-    function showMsg(text, type) {
-        const msg = document.getElementById('msg');
-        msg.innerText = text || '';
-        msg.className = 'msg ' + (type === 'error' ? 'msg-error' : 'msg-ok');
+    /* ================= 标签页切换 ================= */
+    function showTab(name, btn) {
+        document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+        document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+        document.getElementById('panel-' + name).classList.add('active');
+        btn.classList.add('active');
+
+        /* 切到课程页时自动拉一次列表 */
+        if (name === 'course') {
+            loadCourses();
+        }
     }
 
-    /* ========== 统一请求封装 ==========
-       所有请求都走这里，好处：
-       1) 401 统一提示“请先登录”，不会再出现“点了没反应”
+    /* ================= 提示信息 ================= */
+    function showMsg(text, type) {
+        const msg = document.getElementById('msg');
+        if (!text) {
+            msg.innerText = '';
+            msg.className = '';
+            return;
+        }
+        msg.innerText = text;
+        msg.className = 'show ' + (type === 'error' ? 'msg-error' : 'msg-ok');
+    }
+
+    function setUser(name) {
+        const badge = document.getElementById('whoami');
+        if (name) {
+            loggedIn = true;
+            badge.innerText = name;
+            badge.className = 'user-badge';
+        } else {
+            loggedIn = false;
+            badge.innerText = '未登录';
+            badge.className = 'user-badge off';
+        }
+    }
+
+    /* ================= 统一请求封装 =================
+       所有请求都走这里：
+       1) 401 统一提示，不会再出现「点了没反应」
        2) 其他错误统一把后端的 message 显示出来（后端返回 {code,message}） */
     async function request(url, options) {
         const res = await fetch(url, options);
 
         if (res.status === 401) {
+            setUser(null);
             showMsg('请先登录（或会话已过期）', 'error');
             throw new Error('unauthorized');
         }
@@ -133,13 +456,12 @@
         return res;
     }
 
-    /* ========== 登录 ==========
-       浏览器对同源请求会自动保存并自动携带 Cookie，
-       所以这里登录一次，后续所有请求就自动带会话了 */
+    /* ================= 登录 =================
+       浏览器对同源请求会自动保存并携带 Cookie，
+       所以登录一次，后续所有请求就自动带会话了 */
     async function login() {
         try {
-            /* 这里不用 request()：登录接口的 401 表示"账号密码错误"，
-               而不是"会话过期"，所以要单独处理提示语 */
+            /* 这里不走 request()：登录接口的 401 语义和「会话过期」不同 */
             const res = await fetch('/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -163,6 +485,7 @@
             }
 
             showMsg(text);
+            setUser(document.getElementById('username').value);
             await loadPage(1);
             await loadStats();
         } catch (e) {
@@ -170,8 +493,7 @@
         }
     }
 
-    /* ========== 注册 ==========
-       注册只是创建账号，不会自动登录（要再点一次“登录”） */
+    /* ================= 注册 ================= */
     async function register() {
         try {
             const res = await fetch('/register', {
@@ -196,31 +518,31 @@
                 return;
             }
 
-            showMsg(text + '（请再点“登录”）');
+            showMsg(text + '（请再点「登录」）');
         } catch (e) {
             showMsg('注册失败：' + e.message, 'error');
         }
     }
 
-    /* ========== 退出登录 ==========
-       后端会调 session.invalidate()，让服务器端的会话作废 */
+    /* ================= 退出登录 ================= */
     async function logout() {
         try {
             const res = await request('/logout', { method: 'POST' });
             showMsg(await res.text());
+            setUser(null);
             render([]);
             document.getElementById('stats').innerText = '（已退出登录）';
             document.getElementById('pageInfo').innerText = '-';
-        } catch (e) {
-            /* 已提示 */
-        }
+            document.getElementById('courseTbody').innerHTML = '';
+        } catch (e) { /* 已提示 */ }
     }
 
-    /* ========== 表格渲染 ========== */
+    /* ================= 学生表格渲染 ================= */
     function render(rows) {
         const tbody = document.getElementById('tbody');
         tbody.innerHTML = '';
-        if (!Array.isArray(rows)) {
+        if (!Array.isArray(rows) || rows.length === 0) {
+            tbody.innerHTML = '<tr><td class="empty" colspan="5">暂无数据</td></tr>';
             return;
         }
         for (const s of rows) {
@@ -232,14 +554,14 @@
                     <td>${s.name}</td>
                     <td>${s.score}</td>
                     <td>
-                        <button onclick="updateScore('${s.id}')">改成绩</button>
-                        <button onclick="deleteStudent('${s.id}')">删除</button>
+                        <button class="mini" onclick="updateScore('${s.id}')">改成绩</button>
+                        <button class="mini danger" onclick="deleteStudent('${s.id}')">删除</button>
                     </td>
                 </tr>`;
         }
     }
 
-    /* ========== 分页查询 ========== */
+    /* ================= 分页 ================= */
     async function loadPage(page) {
         try {
             const size = Number(document.getElementById('pageSize').value) || 3;
@@ -249,10 +571,11 @@
             const totalPages = data.size > 0 ? Math.ceil(data.total / data.size) : 0;
             document.getElementById('pageInfo').innerText =
                 '第 ' + data.page + ' / ' + (totalPages || 1) + ' 页，共 ' + data.total + ' 条';
+            if (!loggedIn) {
+                setUser('已登录');
+            }
             showMsg('');
-        } catch (e) {
-            /* 已提示 */
-        }
+        } catch (e) { /* 已提示 */ }
     }
 
     function prevPage() {
@@ -267,7 +590,7 @@
         loadPage(currentPage + 1);
     }
 
-    /* ========== 排序 / 查找 / 排行榜 ========== */
+    /* ================= 排序 / 查找 / 排行榜 ================= */
     async function sortStudents() {
         try {
             render(await (await request('/students/sort')).json());
@@ -285,6 +608,7 @@
                 return;
             }
             if (res.status === 401) {
+                setUser(null);
                 showMsg('请先登录（或会话已过期）', 'error');
                 return;
             }
@@ -303,7 +627,7 @@
         } catch (e) { /* 已提示 */ }
     }
 
-    /* ========== 统计 ========== */
+    /* ================= 统计 ================= */
     async function loadStats() {
         try {
             const s = await (await request('/students/stats')).json();
@@ -317,7 +641,7 @@
         } catch (e) { /* 已提示 */ }
     }
 
-    /* ========== 学业预警 ========== */
+    /* ================= 学业预警 ================= */
     async function loadWarnings() {
         try {
             const list = await (await request('/students/warnings')).json();
@@ -330,15 +654,15 @@
 
             box.innerHTML = '';
             for (const w of list) {
-                const color = (w.level === '不及格') ? '#c0392b' : '#b8860b';
+                const cls = (w.level === '不及格') ? 'tag-fail' : 'tag-edge';
                 box.innerHTML +=
-                    '<div>' + w.id + ' ' + w.name + ' — ' + w.score + ' 分 → ' +
-                    '<b style="color:' + color + '">' + w.level + '预警</b></div>';
+                    '<div class="warn-item">' + w.id + ' ' + w.name + ' — ' + w.score + ' 分 ' +
+                    '<span class="tag ' + cls + '">' + w.level + '预警</span></div>';
             }
         } catch (e) { /* 已提示 */ }
     }
 
-    /* ========== 增删改 ========== */
+    /* ================= 增删改 ================= */
     async function addStudent() {
         const stu = {
             id: document.getElementById('addId').value,
@@ -398,8 +722,137 @@
         } catch (e) { /* 已提示 */ }
     }
 
-    /* ========== 页面加载时先试着拉一次数据 ==========
-       没登录会提示“请先登录”，而不是静默失败 */
+    /* ================= AI 智能分析 ================= */
+    async function aiAnalysis() {
+        const box = document.getElementById('aiResult');
+        box.innerText = '正在分析班级成绩，请稍候……';
+        try {
+            const res = await request('/students/ai-analysis');
+            box.innerText = await res.text();
+        } catch (e) {
+            box.innerText = '分析失败：' + e.message;
+        }
+    }
+
+    async function aiAdvice() {
+        const id = document.getElementById('aiAdviceId').value.trim();
+        if (!id) {
+            showMsg('请先填学号', 'error');
+            return;
+        }
+        const box = document.getElementById('aiResult');
+        box.innerText = '正在为学号 ' + id + ' 生成建议，请稍候……';
+        try {
+            const res = await request('/students/ai-advice/' + encodeURIComponent(id));
+            box.innerText = await res.text();
+        } catch (e) {
+            box.innerText = '生成失败：' + e.message;
+        }
+    }
+
+    /* ================= 课程管理 ================= */
+    function renderCourses(list) {
+        const tbody = document.getElementById('courseTbody');
+        tbody.innerHTML = '';
+        if (!Array.isArray(list) || list.length === 0) {
+            tbody.innerHTML = '<tr><td class="empty" colspan="5">暂无课程</td></tr>';
+            return;
+        }
+        for (const c of list) {
+            tbody.innerHTML += `
+                <tr>
+                    <td>${c.courseId}</td>
+                    <td>${c.courseName}</td>
+                    <td>${c.credit}</td>
+                    <td>${c.teacher === null || c.teacher === undefined ? '' : c.teacher}</td>
+                    <td>
+                        <button class="mini" onclick="editCourse('${c.courseId}')">编辑</button>
+                        <button class="mini danger" onclick="deleteCourse('${c.courseId}')">删除</button>
+                    </td>
+                </tr>`;
+        }
+    }
+
+    async function loadCourses() {
+        try {
+            renderCourses(await (await request('/courses')).json());
+            showMsg('课程列表已刷新');
+        } catch (e) { /* 已提示 */ }
+    }
+
+    function readCourseForm() {
+        return {
+            courseId: document.getElementById('courseId').value.trim(),
+            courseName: document.getElementById('courseName').value.trim(),
+            credit: parseFloat(document.getElementById('courseCredit').value),
+            teacher: document.getElementById('courseTeacher').value.trim()
+        };
+    }
+
+    function fillCourseForm(c) {
+        document.getElementById('courseId').value = c.courseId;
+        document.getElementById('courseName').value = c.courseName;
+        document.getElementById('courseCredit').value = c.credit;
+        document.getElementById('courseTeacher').value =
+            (c.teacher === null || c.teacher === undefined) ? '' : c.teacher;
+    }
+
+    function clearCourseForm() {
+        for (const id of ['courseId', 'courseName', 'courseCredit', 'courseTeacher']) {
+            document.getElementById(id).value = '';
+        }
+    }
+
+    async function addCourse() {
+        try {
+            const res = await request('/courses', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(readCourseForm())
+            });
+            showMsg(await res.text());
+            await loadCourses();
+        } catch (e) { /* 已提示 */ }
+    }
+
+    async function editCourse(courseId) {
+        try {
+            const c = await (await request('/courses/' + encodeURIComponent(courseId))).json();
+            fillCourseForm(c);
+            showMsg('已载入 ' + courseId + '，改完点「保存修改」');
+        } catch (e) { /* 已提示 */ }
+    }
+
+    async function updateCourse() {
+        const course = readCourseForm();
+        if (!course.courseId) {
+            showMsg('请先填课程号', 'error');
+            return;
+        }
+        try {
+            const res = await request('/courses/' + encodeURIComponent(course.courseId), {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(course)
+            });
+            showMsg(await res.text());
+            await loadCourses();
+        } catch (e) { /* 已提示 */ }
+    }
+
+    async function deleteCourse(courseId) {
+        if (!confirm('确定删除课程 ' + courseId + ' 吗？')) {
+            return;
+        }
+        try {
+            const res = await request('/courses/' + encodeURIComponent(courseId), { method: 'DELETE' });
+            showMsg(await res.text());
+            await loadCourses();
+        } catch (e) { /* 已提示 */ }
+    }
+
+    /* ================= 页面加载时试拉一次数据 =================
+       没登录会提示「请先登录」，而不是静默失败 */
     loadPage(1);
 </script>
 </body>
