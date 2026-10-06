@@ -23,7 +23,8 @@
 - **课程管理**：课程信息增删改查（独立模块，MyBatis Mapper 直接作为数据层）
 - **AI 班级分析**：把全班成绩与预警名单拼成提示词交给大模型，返回班级整体分析与教学建议
 - **AI 个性化建议**：`/students/ai-advice/{id}` 针对**单个学生**，结合其分数与预警等级生成学习建议
-- **Redis 缓存**：统计与 AI 结果进缓存，写操作自动清缓存；AI 调用配置了连接/读取超时，失败统一返回 **503**
+- **Redis 缓存**：统计与 AI 结果进缓存，写操作自动清缓存；**TTL 加随机值防雪崩**；AI 调用配置了连接/读取超时，失败统一返回 **503**
+- **AOP 日志切面**：两个切面分别记录 Controller 与 Service 的**方法名 / 参数 / 耗时**，业务代码零侵入
 - 资源不存在返回标准 **404**，错误响应格式统一
 - 自带网页界面，浏览器即可完成全部操作
 
@@ -74,8 +75,8 @@
 |---|---|
 | 语言 / 框架 | Java 25、Spring Boot 4.1.1、Spring MVC、Spring JDBC、Spring 事务管理 |
 | 持久层 | JdbcTemplate（学生模块）+ **MyBatis**（课程模块、动态 SQL） |
-| 缓存 | **Redis** + Spring Cache 注解（`@Cacheable` / `@CacheEvict`），Jedis 客户端 |
-| AOP | Spring AOP（`@Aspect` + `@Around`，记录接口调用耗时） |
+| 缓存 | **Redis** + Spring Cache 注解（`@Cacheable` / `@CacheEvict`），Jedis 客户端；TTL 随机化防雪崩 |
+| AOP | Spring AOP（`@Aspect` + `@Around`）：`LogAspect` 记录 Controller、`ServiceLogAspect` 记录 Service（含参数） |
 | 鉴权 | HttpSession + HandlerInterceptor（拦截器） |
 | 安全 | BCrypt 密码哈希（spring-security-crypto）、SQL 参数化查询 |
 | 校验 | Jakarta Bean Validation（`@Valid`） |
@@ -183,7 +184,7 @@ Invoke-RestMethod -Uri "http://localhost:8080/students/007/score?score=90" -Meth
 Invoke-RestMethod -Uri "http://localhost:8080/students/007" -Method Delete -WebSession $sess
 ```
 
-> 不带会话直接访问受保护接口（例如 `curl.exe http://localhost:8080/students`）会得到 `401 {"code":401,"message":"请先登录"}`。
+> 不带会话直接访问受保护接口（例如 `curl.exe http://localhost:8080/students`）会得到 `401 {"code":401,"message":"未登录"}`。
 
 ## 📁 项目结构
 
@@ -208,6 +209,8 @@ src/main/java/com/example/academicwarning/
 ├── BadRequestException.java         自定义参数异常（400）
 ├── AiServiceException.java          AI 调用失败异常（503）
 ├── LogAspect.java                   AOP 切面：记录 Controller 调用耗时
+├── ServiceLogAspect.java            AOP 切面：记录 Service 方法名 + 参数 + 耗时
+├── CacheConfig.java                 缓存配置：给各缓存设随机 TTL（防雪崩）
 │
 ├── Course.java                      课程实体（含校验注解）
 ├── CourseMapper.java                课程数据层：MyBatis @Mapper 接口（注解式 SQL）
@@ -305,6 +308,7 @@ mvn test        # 或在 IDEA 里点测试类旁的绿色三角
 | **v2.3** | 学业预警与质量保障 | 学业预警（阈值可配）、成绩区间查询、参数校验、BCrypt 密码加密、数据库索引、Service 层单元测试 |
 | **v2.4** | 缓存与大模型接入 | 接入 Redis 缓存（Spring Cache 注解）、AI 班级成绩分析接口 |
 | **v2.5** | AI 能力完善 + 课程模块 | 单学生 AI 建议接口 + 超时与异常处理（503）；独立完成课程模块（MyBatis + 参数校验 + 单元测试）；判空职责从 Controller 下沉到 Service |
+| **v2.6** | AOP 与缓存加固 | 新增 Service 层日志切面（方法名 + 参数 + 耗时）；缓存 TTL 随机化（60~119s）防止集体过期引发雪崩 |
 
 **关键改进说明**：
 
@@ -323,6 +327,9 @@ mvn test        # 或在 IDEA 里点测试类旁的绿色三角
 13. **异常职责归属（v2.5）**：查询"不存在则报错"原先写在 Controller 里，导致每个入口都要重复判空、漏写一处就是 500。改为在 **Service 层**统一抛出 `NotFoundException`，所有调用方自动获得 404。
 14. **MyBatis 使用要点（v2.5）**：`#{}` 里写的是 **Java 字段名**而不是数据库列名；单个对象参数**不要**加 `@Param`（加了会被包成 Map，反而取不到属性）；多个参数则**必须**用 `@Param` 命名。
 15. **参数校验的时机（v2.5）**：`@Valid` 在**方法体执行之前**就完成校验，因此"在方法体里补上的字段"（例如用路径参数覆盖请求体里的 id）**不参与校验**，需要借助校验分组或 DTO 才能解决。
+16. **AOP 与"注解为什么失效"（v2.6）**：`execution` 切点匹配的是**目标类**而不是代理接口，所以模式要写 `*ServiceImpl`。更重要的是：`@Transactional` / `@Cacheable` 本身就是注解式切面，而**同类内部 `this.xxx()` 调用不经过代理，注解一律失效**——缓存不生效、事务不回滚，根源都在这里。
+17. **雪崩防护（v2.6）**：所有 key 用同一个固定 TTL，会在同一时刻集体过期，请求瞬间全压到数据库。解法是给 TTL 加随机值——注意必须用 `entryTtl(TtlFunction)` 重载（**每次写入现算**），而不是 `entryTtl(Duration)`（启动时算一次，依旧固定）。
+18. **警惕静默失败**：本项目踩到三个"不报错但结果错"的坑——请求没带 `Content-Type`（→ 415）、单元测试在打桩前就调用（→ 假绿）、缓存名拼写不一致（→ 配置静默失效）。**字符串与顺序上的错误编译器管不了**，能抽成常量的就抽成常量。
 
 ## ❓ 常见问题
 

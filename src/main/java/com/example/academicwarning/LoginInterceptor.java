@@ -10,7 +10,7 @@ public class LoginInterceptor implements HandlerInterceptor {
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler){
         HttpSession session=request.getSession(false);
         if(session==null||session.getAttribute("loginUser")==null){
-            throw new UnauthorizedException("请先登录");
+            throw new UnauthorizedException("未登录");
         }
         return true;
     }
