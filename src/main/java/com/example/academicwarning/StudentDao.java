@@ -6,7 +6,7 @@ public interface StudentDao {
 
     Student findById(String id);
 
-    Student findByName(String name);
+    List<Student> findByName(String name);
 
     int insert(Student stu);
 

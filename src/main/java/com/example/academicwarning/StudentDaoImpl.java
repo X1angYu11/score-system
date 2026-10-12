@@ -22,10 +22,9 @@ public class StudentDaoImpl implements StudentDao{
         return list.isEmpty()? null:list.get(0);
     }
     @Override
-    public Student findByName(String name){
-        List<Student> list=jdbcTemplate.query("select id,name,score from student where name=?",
+    public List<Student> findByName(String name){
+        return jdbcTemplate.query("select id,name,score from student where name=?",
                 (rs,rowNum)->new Student(rs.getString("id"),rs.getString("name"),rs.getDouble("score")),name);
-        return list.isEmpty()? null:list.get(0);
     }
     @Override
     public int insert(Student stu){

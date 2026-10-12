@@ -1,13 +1,9 @@
 package com.example.academicwarning;
+
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.PutMapping;//改
-import  org.springframework.web.bind.annotation.DeleteMapping;//删
-import jakarta.validation.Valid;
 
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -26,12 +22,8 @@ public class StudentController {
         return stu;
     }
     @GetMapping("/students/search")
-    public Student studentfindbyname(@RequestParam String name){
-        Student stu= studentService.findByName(name);
-        if(stu==null){
-            throw new StudentNotFoundException("没找到姓名为"+name+"的学生");
-        }
-        return stu;
+    public List<Student> searchByName(@RequestParam String name){
+        return studentService.searchByName(name);
     }
     @PostMapping("/students")
     public String insert(@Valid @RequestBody Student stu){
@@ -40,10 +32,7 @@ public class StudentController {
     }
     @PutMapping("/students/{id}/score")
     public String update(@PathVariable String id,@RequestParam double score){
-        int rows=studentService.updateScore(id,score);
-        if(rows==0){
-            throw new StudentNotFoundException("学生"+id+"不存在，修改失败");
-        }
+        studentService.updateScore(id,score);
         return "修改成功：" + id;
     }
     @GetMapping("/students/sort")
@@ -52,10 +41,7 @@ public class StudentController {
     }
     @DeleteMapping("/students/{id}")
     public String delete(@PathVariable String id){
-        int rows= studentService.deleteById(id);
-        if(rows==0){
-            throw new StudentNotFoundException("学生"+id+"不存在，无需删除");
-        }
+        studentService.deleteById(id);
         return "删除成功：" + id;
     }
     @PostMapping("/students/batch")
@@ -66,12 +52,7 @@ public class StudentController {
     @GetMapping("/students/page")
     public Map<String, Object> findPage(@RequestParam(defaultValue = "1") int page,
                                         @RequestParam(defaultValue = "3") int size){
-        Map<String,Object> result=new LinkedHashMap<>();
-        result.put("total",studentService.count());
-        result.put("page",page);
-        result.put("size",size);
-        result.put("data",studentService.findPage(page,size));
-        return result;
+        return studentService.findPage(page, size);
     }
     @GetMapping("/students/stats")
     public Map<String, Object> stats(){

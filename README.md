@@ -37,7 +37,7 @@
 | 退出登录 | `/logout` | POST | 否 |
 | 查询全部学生 | `/students` | GET | 是 |
 | 按学号查询 | `/students/{id}` | GET | 是 |
-| 按姓名查询 | `/students/search?name=xxx` | GET | 是 |
+| 按姓名搜索（**返回列表**，查不到返回空数组） | `/students/search?name=xxx` | GET | 是 |
 | 按成绩降序排列 | `/students/sort` | GET | 是 |
 | 分页查询 | `/students/page?page=1&size=3` | GET | 是 |
 | 成绩统计 | `/students/stats` | GET | 是 |
@@ -309,6 +309,7 @@ mvn test        # 或在 IDEA 里点测试类旁的绿色三角
 | **v2.4** | 缓存与大模型接入 | 接入 Redis 缓存（Spring Cache 注解）、AI 班级成绩分析接口 |
 | **v2.5** | AI 能力完善 + 课程模块 | 单学生 AI 建议接口 + 超时与异常处理（503）；独立完成课程模块（MyBatis + 参数校验 + 单元测试）；判空职责从 Controller 下沉到 Service |
 | **v2.6** | AOP 与缓存加固 | 新增 Service 层日志切面（方法名 + 参数 + 耗时）；缓存 TTL 随机化（60~119s）防止集体过期引发雪崩 |
+| **v2.7** | 分层一致性与缺陷修复 | 学生模块的判空/影响行数判断全部下沉到 Service，与课程模块统一；`searchByName` 改为返回列表（修掉同名只返回第一个的静默丢数据）；`@Cacheable` 数组误用导致统计结果被写进 AI 缓存；分页接口返回修正后的 page/size；JDBC URL 改用 `127.0.0.1` 修掉间歇性连接失败 |
 
 **关键改进说明**：
 
@@ -330,6 +331,10 @@ mvn test        # 或在 IDEA 里点测试类旁的绿色三角
 16. **AOP 与"注解为什么失效"（v2.6）**：`execution` 切点匹配的是**目标类**而不是代理接口，所以模式要写 `*ServiceImpl`。更重要的是：`@Transactional` / `@Cacheable` 本身就是注解式切面，而**同类内部 `this.xxx()` 调用不经过代理，注解一律失效**——缓存不生效、事务不回滚，根源都在这里。
 17. **雪崩防护（v2.6）**：所有 key 用同一个固定 TTL，会在同一时刻集体过期，请求瞬间全压到数据库。解法是给 TTL 加随机值——注意必须用 `entryTtl(TtlFunction)` 重载（**每次写入现算**），而不是 `entryTtl(Duration)`（启动时算一次，依旧固定）。
 18. **警惕静默失败**：本项目踩到三个"不报错但结果错"的坑——请求没带 `Content-Type`（→ 415）、单元测试在打桩前就调用（→ 假绿）、缓存名拼写不一致（→ 配置静默失效）。**字符串与顺序上的错误编译器管不了**，能抽成常量的就抽成常量。
+19. **"取资源" vs "搜索"（v2.7）**：`findById` 查不到要抛 404，但"按姓名"应该返回列表——**姓名不是唯一标识**，搜索查不到是正常结果而非异常。原实现用 `list.get(0)` 只返回第一条，同名多人时**静默丢弃**其余记录。改成返回 `List` 后，方法名也改为 `searchByName`，把语义写进名字里。
+20. **`@Cacheable` 的 value 是数组（v2.7）**：`@Cacheable(value = {"c1", "c2"})` 的含义是**同时写入两个缓存**，不是"二选一"。误用后统计结果被同时写进了 AI 缓存（Redis 里凭空出现 `aiAdvice::all`）。而 `@CacheEvict` 用数组才是对的——那几个缓存都要清。
+21. **间歇性数据库连接失败（v2.7）**：Windows 上 `localhost` 优先解析为 IPv6 `::1`，而 MySQL 只监听 IPv4，于是 JDBC 偶发 `Failed to obtain JDBC Connection`——表现是"有时能连、重启就好"，反复出现几次才定位到。把 JDBC URL 里的 `localhost` 换成 `127.0.0.1` 强制 IPv4 即可根治。
+22. **分层一致性（v2.7）**：学生模块最初把"判空/影响 0 行"写在 Controller，课程模块写在 Service，同一个项目两种风格。统一下沉到 Service 后，Controller 里**一行判空都没有**，面试时也更容易讲清职责边界。
 
 ## ❓ 常见问题
 
@@ -344,6 +349,7 @@ mvn test        # 或在 IDEA 里点测试类旁的绿色三角
 | PowerShell 里 curl 传 JSON 报错 | `curl.exe` 在 PowerShell 中会吞掉 JSON 的引号，改用 `Invoke-RestMethod` + 单引号包 JSON |
 | `java -jar` 与 IDEA 运行结果不一致 | jar 是打包时的快照，源码改动需重新打包才会生效 |
 | 索引加了但 `EXPLAIN` 仍显示 `ALL` | 表数据太少，优化器认为全表扫描更快；数据量大时才会走索引 |
+| 偶发 `Failed to obtain JDBC Connection`（重启就好） | Windows 上 `localhost` 优先解析成 IPv6 `::1`，而 MySQL 只监听 IPv4。把 JDBC URL 的 `localhost` 改成 `127.0.0.1` |
 | 带缓存注解的接口报 `RedisConnectionFailureException` | Redis 没启动。先启动 `redis-server.exe` 再重试 |
 | AI 接口返回 `503 {"code":503,...}` | 依赖的 AI 服务不可用：检查 `DEEPSEEK_API_KEY` 是否配置、网络是否可达、是否触发超时 |
 | 新增/修改接口返回 **415** | 请求没带 `Content-Type`。调用 POST/PUT 必须带 `application/json` |

@@ -54,7 +54,7 @@ GET http://localhost:8080/students/001
 Cookie: {{sid}}
 
 
-### 6. 按姓名查询
+### 6. 按姓名搜索（返回【列表】；查不到返回 []，不是 404）
 GET http://localhost:8080/students/search?name=张三
 Cookie: {{sid}}
 

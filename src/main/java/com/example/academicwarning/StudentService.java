@@ -7,7 +7,7 @@ public interface StudentService {
 
     Student findById(String id);
 
-    Student findByName(String name);
+    List<Student> searchByName(String name);
 
     int insert(Student stu);
 
@@ -17,7 +17,7 @@ public interface StudentService {
 
     List<Student> findAllByScoreDesc();
     int insertBatch(List<Student> students);
-    List<Student> findPage(int page, int size);
+    Map<String, Object> findPage(int page, int size);
 
     int count();
     Map<String, Object> stats();

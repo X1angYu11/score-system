@@ -4,7 +4,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -17,10 +16,23 @@ import java.util.LinkedHashMap;
 
 @Service
 public class StudentServiceImpl implements StudentService{
+
+    private static final Logger log = LoggerFactory.getLogger(StudentServiceImpl.class);
+
+    /** 及格线：低于它算「不及格」预警 */
+    @Value("${warning.pass-score:60}")
+    private double passScore;
+
+    /** 临界宽度：及格线往上这么多分以内算「临界」预警 */
+    @Value("${warning.border-line:10}")
+    private double borderLine;
+
     @Autowired
     private StudentDao studentDao;
+
     @Autowired
     private StudentMapper studentMapper;
+
     @Override
     public List<Student> findAll(){
         return studentDao.findAll();
@@ -34,7 +46,7 @@ public class StudentServiceImpl implements StudentService{
         return s;
     }
     @Override
-    public Student findByName(String name){
+    public List<Student> searchByName(String name){
         return studentDao.findByName(name);
     }
     @Override
@@ -45,12 +57,20 @@ public class StudentServiceImpl implements StudentService{
     @Override
     @CacheEvict(value = {"stats", "aiAdvice", "aiAnalysis"}, allEntries = true)
     public int updateScore(String id,double score){
-        return studentDao.updateScore(id,score);
+        int rows=studentDao.updateScore(id,score);
+        if(rows==0){
+            throw new StudentNotFoundException("学生" + id + "不存在，修改失败");
+        }
+        return rows;
     }
     @Override
     @CacheEvict(value = {"stats", "aiAdvice", "aiAnalysis"}, allEntries = true)
     public int deleteById(String id){
-        return studentDao.deleteById(id);
+        int rows=studentDao.deleteById(id);
+        if(rows==0){
+            throw new StudentNotFoundException("学生" + id + "不存在，无需删除");
+        }
+        return rows;
     }
     @Override
     public List<Student> findAllByScoreDesc(){
@@ -66,25 +86,12 @@ public class StudentServiceImpl implements StudentService{
         }
         return count;
     }
-    @Override
-    public List<Student> findPage(int page,int size){
-        if(page<1){
-            page=1;
-        }
-        if(size<1){
-            size=10;
-        }
-        if(size>100){
-            size=100;
-        }
-        int offset=(page-1)*size;
-        return studentDao.findPage(offset,size);
-    }
+
     @Override
     public int count(){
         return studentDao.count();
     }
-    @Cacheable(value = {"stats", "aiAdvice", "aiAnalysis"}, key = "'all'")
+    @Cacheable(value = "stats", key = "'all'")
     @Override
     public Map<String,Object> stats(){
         log.info("【缓存未命中】正在查数据库计算统计");
@@ -140,12 +147,6 @@ public class StudentServiceImpl implements StudentService{
         }
         return result;
     }
-    @Value("${warning.pass-score:60}")
-    private double passScore;
-
-    @Value("${warning.border-line:10}")
-    private double borderLine;
-
     @Override
     public List<Map<String,Object>> warnings(){
         List<Student> all=studentDao.findAll();
@@ -174,14 +175,32 @@ public class StudentServiceImpl implements StudentService{
         if(minScore<=maxScore){
             return studentMapper.findRange(minScore, maxScore);
         }else{
-            throw new BadRequestException("Invalid score range");
+            throw new BadRequestException("成绩区间非法：最小值不能大于最大值");
         }
     }
     @Override
     public List<Student> query(String name, Double minScore, Double maxScore){
         return studentMapper.query(name, minScore, maxScore);
     }
-    private static final Logger log = LoggerFactory.getLogger(StudentServiceImpl.class);
+    @Override
+    public Map<String, Object> findPage(int page,int size){
+        if(page<1){
+            page=1;
+        }
+        if(size<1){
+            size=10;
+        }
+        if(size>100){
+            size=100;
+        }
+        int offset=(page-1)*size;
 
+        Map<String,Object> result=new LinkedHashMap<>();
+        result.put("page",page);
+        result.put("size",size);
+        result.put("total",studentDao.count());
+        result.put("data",studentDao.findPage(offset,size));
+        return result;
+    }
 
 }

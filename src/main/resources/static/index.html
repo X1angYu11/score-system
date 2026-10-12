@@ -287,7 +287,7 @@
             <h3>学生列表</h3>
             <table>
                 <thead>
-                <tr><th>名次</th><th>学号</th><th>姓名</th><th>成绩</th><th style="width:170px">操作</th></tr>
+                <tr><th id="rankHeader">名次</th><th>学号</th><th>姓名</th><th>成绩</th><th style="width:170px">操作</th></tr>
                 </thead>
                 <tbody id="tbody"></tbody>
             </table>
@@ -537,19 +537,22 @@
         } catch (e) { /* 已提示 */ }
     }
 
-    /* ================= 学生表格渲染 ================= */
-    function render(rows) {
+    /* ================= 学生表格渲染 =================
+       showRank：只有排行榜的数据才带名次，分页/排序/搜索时不显示这一列 */
+    function render(rows, showRank) {
         const tbody = document.getElementById('tbody');
+        document.getElementById('rankHeader').style.display = showRank ? '' : 'none';
         tbody.innerHTML = '';
+
         if (!Array.isArray(rows) || rows.length === 0) {
-            tbody.innerHTML = '<tr><td class="empty" colspan="5">暂无数据</td></tr>';
+            tbody.innerHTML = '<tr><td class="empty" colspan="' + (showRank ? 5 : 4) + '">暂无数据</td></tr>';
             return;
         }
         for (const s of rows) {
-            const rank = (s.rank === undefined) ? '-' : s.rank;
+            const rankCell = showRank ? `<td>${s.rank === undefined ? '-' : s.rank}</td>` : '';
             tbody.innerHTML += `
                 <tr>
-                    <td>${rank}</td>
+                    ${rankCell}
                     <td>${s.id}</td>
                     <td>${s.name}</td>
                     <td>${s.score}</td>
@@ -601,28 +604,22 @@
     async function searchByName() {
         const name = document.getElementById('searchName').value;
         try {
-            const res = await fetch('/students/search?name=' + encodeURIComponent(name));
-            if (res.status === 404) {
+            /* 搜索接口返回的是【列表】：查不到就是空数组，不再是 404 */
+            const list = await (await request('/students/search?name=' + encodeURIComponent(name))).json();
+            if (!Array.isArray(list) || list.length === 0) {
                 render([]);
                 showMsg('没找到姓名为【' + name + '】的学生', 'error');
                 return;
             }
-            if (res.status === 401) {
-                setUser(null);
-                showMsg('请先登录（或会话已过期）', 'error');
-                return;
-            }
-            render([await res.json()]);
-            showMsg('查找完成');
-        } catch (e) {
-            showMsg('查找失败：' + e.message, 'error');
-        }
+            render(list);
+            showMsg('找到 ' + list.length + ' 条');
+        } catch (e) { /* 已提示 */ }
     }
 
     async function loadTop() {
         const n = Number(document.getElementById('topN').value) || 3;
         try {
-            render(await (await request('/students/top?n=' + n)).json());
+            render(await (await request('/students/top?n=' + n)).json(), true);
             showMsg('已显示成绩前 ' + n + ' 名');
         } catch (e) { /* 已提示 */ }
     }
