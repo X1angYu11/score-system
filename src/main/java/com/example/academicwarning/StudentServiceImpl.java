@@ -1,4 +1,7 @@
 package com.example.academicwarning;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -8,10 +11,13 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.LinkedHashMap;
+import java.util.logging.Level;
 
 
 @Service
@@ -202,5 +208,38 @@ public class StudentServiceImpl implements StudentService{
         result.put("data",studentDao.findPage(offset,size));
         return result;
     }
+    @Override
+    public byte[] exportExcel(){
+        List<Student> students=studentDao.findAll();
+        try(XSSFWorkbook wb = new XSSFWorkbook();
+            ByteArrayOutputStream out=new ByteArrayOutputStream()){
+            Sheet sheet=wb.createSheet("学生成绩");
 
+            Row header=sheet.createRow(0);
+            String[] titles={"学号","姓名","成绩","预警等级"};
+            for(int i=0;i<titles.length;i++){
+                header.createCell(i).setCellValue(titles[i]);
+            }
+            int rowIdx=1;
+            for(Student s:students){
+                Row row=sheet.createRow(rowIdx++);
+                row.createCell(0).setCellValue(s.getId());
+                row.createCell(1).setCellValue(s.getName());
+                row.createCell(2).setCellValue(s.getScore());
+                row.createCell(3).setCellValue(levelOf(s.getScore()));
+            }
+            for(int i=0;i<titles.length;i++){
+                sheet.autoSizeColumn(i);
+            }
+            wb.write(out);
+            return out.toByteArray();
+        }catch(IOException e){
+            throw new RuntimeException("导出Excel失败",e);
+        }
+    }
+    private String levelOf(double score){
+        if(score<passScore) return "不及格";
+        if(score<passScore+borderLine) return "临界";
+        return "正常";
+    }
 }

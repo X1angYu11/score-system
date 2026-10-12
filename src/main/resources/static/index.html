@@ -273,6 +273,8 @@
                 <span class="sep"></span>
                 <label>前 <input id="topN" type="number" value="3" class="w-sm"> 名</label>
                 <button onclick="loadTop()">查排行榜</button>
+                <span class="sep"></span>
+                <button onclick="exportExcel()">导出 Excel</button>
             </div>
             <div class="row">
                 <label>每页 <input id="pageSize" type="number" value="3" class="w-sm"> 条</label>
@@ -621,6 +623,26 @@
         try {
             render(await (await request('/students/top?n=' + n)).json(), true);
             showMsg('已显示成绩前 ' + n + ' 名');
+        } catch (e) { /* 已提示 */ }
+    }
+
+    /* ================= 导出 Excel =================
+       下载不能直接把浏览器跳到 /students/export ——
+       那样未登录时会跳出一页 JSON，用户一脸懵。
+       用 fetch 拿 blob，就能复用 request() 的 401 处理。 */
+    async function exportExcel() {
+        try {
+            const res = await request('/students/export');
+            const blob = await res.blob();
+
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = '学生成绩.xlsx';
+            a.click();
+            URL.revokeObjectURL(url);        // 释放临时地址，否则内存泄漏
+
+            showMsg('导出成功，请查看下载文件夹');
         } catch (e) { /* 已提示 */ }
     }
 

@@ -1,9 +1,15 @@
 package com.example.academicwarning;
 
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.expression.StandardBeanExpressionResolver;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
@@ -83,5 +89,16 @@ public class StudentController {
     @GetMapping("/students/ai-advice/{id}")
     public String aiAdvice(@PathVariable String id){
         return aiService.adviseStudent(id);
+    }
+    @GetMapping("/students/export")
+    public void export(HttpServletResponse response) throws IOException {
+        byte[] data=studentService.exportExcel();
+        String encoded = URLEncoder.encode("学生成绩.xlsx", StandardCharsets.UTF_8).replace("+", "%20");
+
+        response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        response.setHeader("Content-Disposition",
+                "attachment; filename=\"scores.xlsx\"; filename*=UTF-8''" + encoded);
+        response.getOutputStream().write(data);
+        response.getOutputStream().flush();
     }
 }

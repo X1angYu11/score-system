@@ -28,4 +28,6 @@ public interface StudentService {
     List<Student> findRange(double minScore, double maxScore);
 
     List<Student> query(String name,Double minScore,Double maxScore);
+
+    byte[] exportExcel();
 }

@@ -25,6 +25,7 @@
 - **AI 个性化建议**：`/students/ai-advice/{id}` 针对**单个学生**，结合其分数与预警等级生成学习建议
 - **Redis 缓存**：统计与 AI 结果进缓存，写操作自动清缓存；**TTL 加随机值防雪崩**；AI 调用配置了连接/读取超时，失败统一返回 **503**
 - **AOP 日志切面**：两个切面分别记录 Controller 与 Service 的**方法名 / 参数 / 耗时**，业务代码零侵入
+- **Excel 导出**：一键导出学生成绩单（含预警等级），中文文件名正确处理（RFC 5987）
 - 资源不存在返回标准 **404**，错误响应格式统一
 - 自带网页界面，浏览器即可完成全部操作
 
@@ -48,6 +49,7 @@
 | 批量导入学生 | `/students/batch` | POST（JSON 数组） | 是 |
 | 修改成绩 | `/students/{id}/score?score=xx` | PUT | 是 |
 | 删除学生 | `/students/{id}` | DELETE | 是 |
+| **导出成绩单 Excel** | `/students/export` | GET（返回二进制文件流） | 是 |
 | AI 班级成绩分析 | `/students/ai-analysis` | GET | 是 |
 | AI 单个学生建议 | `/students/ai-advice/{id}` | GET | 是 |
 | 查询全部课程 | `/courses` | GET | 是 |
@@ -82,6 +84,7 @@
 | 校验 | Jakarta Bean Validation（`@Valid`） |
 | 数据库 | MySQL 8（HikariCP 连接池 + 索引优化） |
 | AI | `RestClient` 调用 DeepSeek Chat API（配置连接/读取超时） |
+| 报表导出 | **Apache POI 5.4**（`XSSFWorkbook` 生成 .xlsx） |
 | 测试 | JUnit 5 + Mockito（Service 层单元测试） |
 | 构建 / 工具 | Maven、Git |
 | 前端 | 原生 HTML + Fetch API |
@@ -310,6 +313,7 @@ mvn test        # 或在 IDEA 里点测试类旁的绿色三角
 | **v2.5** | AI 能力完善 + 课程模块 | 单学生 AI 建议接口 + 超时与异常处理（503）；独立完成课程模块（MyBatis + 参数校验 + 单元测试）；判空职责从 Controller 下沉到 Service |
 | **v2.6** | AOP 与缓存加固 | 新增 Service 层日志切面（方法名 + 参数 + 耗时）；缓存 TTL 随机化（60~119s）防止集体过期引发雪崩 |
 | **v2.7** | 分层一致性与缺陷修复 | 学生模块的判空/影响行数判断全部下沉到 Service，与课程模块统一；`searchByName` 改为返回列表（修掉同名只返回第一个的静默丢数据）；`@Cacheable` 数组误用导致统计结果被写进 AI 缓存；分页接口返回修正后的 page/size；JDBC URL 改用 `127.0.0.1` 修掉间歇性连接失败 |
+| **v2.8** | Excel 导出 | 接入 Apache POI，一键导出成绩单（含预警等级）；分层上让 Service 只产出 `byte[]`、Controller 负责写 HTTP 响应；中文文件名按 RFC 5987 处理 |
 
 **关键改进说明**：
 
@@ -335,6 +339,9 @@ mvn test        # 或在 IDEA 里点测试类旁的绿色三角
 20. **`@Cacheable` 的 value 是数组（v2.7）**：`@Cacheable(value = {"c1", "c2"})` 的含义是**同时写入两个缓存**，不是"二选一"。误用后统计结果被同时写进了 AI 缓存（Redis 里凭空出现 `aiAdvice::all`）。而 `@CacheEvict` 用数组才是对的——那几个缓存都要清。
 21. **间歇性数据库连接失败（v2.7）**：Windows 上 `localhost` 优先解析为 IPv6 `::1`，而 MySQL 只监听 IPv4，于是 JDBC 偶发 `Failed to obtain JDBC Connection`——表现是"有时能连、重启就好"，反复出现几次才定位到。把 JDBC URL 里的 `localhost` 换成 `127.0.0.1` 强制 IPv4 即可根治。
 22. **分层一致性（v2.7）**：学生模块最初把"判空/影响 0 行"写在 Controller，课程模块写在 Service，同一个项目两种风格。统一下沉到 Service 后，Controller 里**一行判空都没有**，面试时也更容易讲清职责边界。
+23. **文件下载的分层（v2.8）**：导出接口和普通接口不一样——它返回的是**二进制流**而不是 JSON。关键是别让 `HttpServletResponse` 渗进 Service：**Service 只负责产出 `byte[]`，Controller 负责写响应头 + 写流**。这样同一个 `exportExcel()` 将来被定时任务（每天导出并发邮件）复用时不依赖 HTTP。
+24. **中文文件名（v2.8）**：`Content-Disposition` 里的 `filename=` 只保证 ASCII，中文各家浏览器行为不一致（可能显示成 `%E5%AD%A6...`）。正确写法是 RFC 5987 的 **`filename*=UTF-8''`**——同时保留一个 ASCII 兜底名。另外 `URLEncoder.encode()` 把空格编成 `+`，而 RFC 5987 要求 `%20`，需要 `.replace("+", "%20")`。
+25. **下载接口的 401 体验（v2.8）**：用 `<a href>` 或地址栏访问导出接口，未登录时浏览器会**跳到一页 JSON**。正确做法是前端用 `fetch` 拿 `blob`（复用统一的 401 处理），再用 `URL.createObjectURL` 触发下载——**记得 `revokeObjectURL` 释放，否则内存泄漏**。
 
 ## ❓ 常见问题
 
@@ -354,4 +361,6 @@ mvn test        # 或在 IDEA 里点测试类旁的绿色三角
 | AI 接口返回 `503 {"code":503,...}` | 依赖的 AI 服务不可用：检查 `DEEPSEEK_API_KEY` 是否配置、网络是否可达、是否触发超时 |
 | 新增/修改接口返回 **415** | 请求没带 `Content-Type`。调用 POST/PUT 必须带 `application/json` |
 | PowerShell 用 `-ContentType $变量` 结果全 415 | 变量为空时 PowerShell **不报错**，只是不发这个头。改用字面量字符串，或在脚本开头加 `Set-StrictMode -Version Latest` |
+| 导出的 Excel 文件名是一串 `%E5%AD%A6...` | `Content-Disposition` 少写了 `*`。要用 `filename*=UTF-8''`（RFC 5987），并保留一个 ASCII 的 `filename=` 兜底 |
+| 点导出按钮浏览器跳出一页 JSON | 用 `<a href>` 直连下载，未登录时就会这样。改用 `fetch` 拿 `blob`，把 401 交给统一的错误处理 |
 | 单元测试全绿却没真正测到东西 | 常见"假绿"：在打桩之前就调用了被测方法，断言的是 Mock 默认值。顺序必须是 **准备 → 打桩 → 执行 → 断言** |
